@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "GGRteFi4kSSvR1S4tuqcms2VTuma03newjPjvp+XzM8=",
+  "Source": "Eswatini.Health.Api",
+  "BasePath": "_content/Eswatini.Health.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

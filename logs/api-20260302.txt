@@ -1,0 +1,1314 @@
+2026-03-02 11:31:09.515 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 11:31:11.191 +02:00 [INF] Ensuring database exists...
+2026-03-02 11:31:15.941 +02:00 [INF] Executed DbCommand (183ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 11:31:16.361 +02:00 [INF] Executed DbCommand (269ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 11:31:16.399 +02:00 [INF] Database initialization completed
+2026-03-02 11:31:18.674 +02:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 11:31:18.862 +02:00 [INF] Executed DbCommand (9ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 11:31:18.906 +02:00 [INF] Executed DbCommand (13ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 11:31:18.920 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 11:31:18.960 +02:00 [INF] API started successfully
+2026-03-02 11:31:19.089 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 11:31:20.101 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 11:31:20.109 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 11:31:20.116 +02:00 [INF] Hosting environment: Development
+2026-03-02 11:31:20.118 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 12:09:23.413 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:09:23.883 +02:00 [INF] Ensuring database exists...
+2026-03-02 12:09:25.280 +02:00 [INF] Executed DbCommand (51ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:09:25.434 +02:00 [INF] Executed DbCommand (119ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 12:09:25.439 +02:00 [INF] Database initialization completed
+2026-03-02 12:09:26.156 +02:00 [INF] Executed DbCommand (14ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 12:09:26.214 +02:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 12:09:26.223 +02:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 12:09:26.225 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 12:09:26.234 +02:00 [INF] API started successfully
+2026-03-02 12:09:26.252 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 12:09:26.518 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 12:09:26.527 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 12:09:26.528 +02:00 [INF] Hosting environment: Development
+2026-03-02 12:09:26.528 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 12:10:32.453 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 58
+2026-03-02 12:10:32.520 +02:00 [ERR] An unhandled exception has occurred while executing the request.
+System.InvalidOperationException: Duplicate endpoint name 'GetCurrentUser' found on 'HTTP: GET /api/api/users/me => GetCurrentUser' and 'HTTP: GET /api/auth/me => GetCurrentUser'. Endpoint names must be globally unique.
+   at Microsoft.AspNetCore.Routing.Matching.DataSourceDependentMatcher.CreateMatcher(IReadOnlyList`1 endpoints)
+   at Microsoft.AspNetCore.Routing.DataSourceDependentCache`1.Initialize()
+   at System.Threading.LazyInitializer.EnsureInitializedCore[T](T& target, Boolean& initialized, Object& syncLock, Func`1 valueFactory)
+   at Microsoft.AspNetCore.Routing.Matching.DataSourceDependentMatcher..ctor(EndpointDataSource dataSource, Lifetime lifetime, Func`1 matcherBuilderFactory)
+   at Microsoft.AspNetCore.Routing.Matching.DfaMatcherFactory.CreateMatcher(EndpointDataSource dataSource)
+   at Microsoft.AspNetCore.Routing.EndpointRoutingMiddleware.InitializeCoreAsync()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointRoutingMiddleware.<Invoke>g__AwaitMatcher|10_0(EndpointRoutingMiddleware middleware, HttpContext httpContext, Task`1 matcherTask)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2026-03-02 12:10:32.537 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 500 null text/plain; charset=utf-8 86.0419ms
+2026-03-02 12:11:53.957 +02:00 [INF] Application is shutting down...
+2026-03-02 12:12:11.040 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:12:11.669 +02:00 [INF] Ensuring database exists...
+2026-03-02 12:12:13.610 +02:00 [INF] Executed DbCommand (63ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:12:13.730 +02:00 [INF] Executed DbCommand (67ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 12:12:13.737 +02:00 [INF] Database initialization completed
+2026-03-02 12:12:14.427 +02:00 [INF] Executed DbCommand (6ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 12:12:14.493 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 12:12:14.503 +02:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 12:12:14.506 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 12:12:14.517 +02:00 [INF] API started successfully
+2026-03-02 12:12:14.536 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 12:12:15.080 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 12:12:15.085 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 12:12:15.086 +02:00 [INF] Hosting environment: Development
+2026-03-02 12:12:15.086 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 12:12:32.275 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 58
+2026-03-02 12:12:32.405 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 12:12:32.449 +02:00 [INF] Executing endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 12:12:32.680 +02:00 [INF] Executed DbCommand (38ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='"Text"', CommandTimeout='60']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[IsActive], [u].[LastLoginAt], [u].[Name], [u].[PasswordHash], [u].[Role], [u].[Surname], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+2026-03-02 12:12:32.710 +02:00 [ERR] An exception occurred while iterating over the results of a query for context type 'Eswatini.Health.Api.Data.StagingDbContext'.
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method95(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method95(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+2026-03-02 12:12:32.720 +02:00 [INF] Setting HTTP status code 500.
+2026-03-02 12:12:32.735 +02:00 [INF] Writing value of type 'ProblemDetails' as Json.
+2026-03-02 12:12:32.747 +02:00 [INF] Executed endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 12:12:32.749 +02:00 [WRN] Request failed: POST /api/auth/login returned 500
+2026-03-02 12:12:32.759 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 500 null application/problem+json 485.2864ms
+2026-03-02 12:12:53.084 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/ - null null
+2026-03-02 12:12:53.096 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/ - 301 0 null 12.4479ms
+2026-03-02 12:12:53.104 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/index.html - null null
+2026-03-02 12:12:53.180 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/index.html - 200 null text/html;charset=utf-8 75.6168ms
+2026-03-02 12:12:53.263 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/swagger-ui.css - null null
+2026-03-02 12:12:53.371 +02:00 [INF] Sending file. Request path: '/swagger-ui.css'. Physical path: 'N/A'
+2026-03-02 12:12:53.372 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/swagger-ui.css - 200 144929 text/css 109.1444ms
+2026-03-02 12:12:53.817 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/favicon-16x16.png - null null
+2026-03-02 12:12:53.822 +02:00 [INF] Sending file. Request path: '/favicon-16x16.png'. Physical path: 'N/A'
+2026-03-02 12:12:53.823 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/favicon-16x16.png - 200 665 image/png 5.8171ms
+2026-03-02 12:12:53.923 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - null null
+2026-03-02 12:12:53.933 +02:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2026-03-02 12:12:54.134 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 210.8261ms
+2026-03-02 12:16:26.124 +02:00 [INF] Application is shutting down...
+2026-03-02 12:16:42.677 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:16:43.371 +02:00 [INF] Ensuring database exists...
+2026-03-02 12:16:45.128 +02:00 [INF] Executed DbCommand (72ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:16:45.247 +02:00 [INF] Executed DbCommand (58ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 12:16:45.252 +02:00 [INF] Database initialization completed
+2026-03-02 12:16:45.876 +02:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 12:16:45.927 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 12:16:45.935 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 12:16:45.937 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 12:16:45.946 +02:00 [INF] API started successfully
+2026-03-02 12:16:45.964 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 12:16:46.224 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 12:16:46.231 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 12:16:46.232 +02:00 [INF] Hosting environment: Development
+2026-03-02 12:16:46.233 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 12:17:00.076 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/index.html - null null
+2026-03-02 12:17:00.268 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/index.html - 200 null text/html;charset=utf-8 194.586ms
+2026-03-02 12:17:00.508 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - null null
+2026-03-02 12:17:00.522 +02:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2026-03-02 12:17:00.662 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 152.5296ms
+2026-03-02 12:17:23.617 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 58
+2026-03-02 12:17:23.621 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 12:17:23.663 +02:00 [INF] Executing endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 12:17:23.912 +02:00 [INF] Executed DbCommand (31ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='"Text"', CommandTimeout='60']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[IsActive], [u].[LastLoginAt], [u].[Name], [u].[PasswordHash], [u].[Role], [u].[Surname], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+2026-03-02 12:17:23.952 +02:00 [ERR] An exception occurred while iterating over the results of a query for context type 'Eswatini.Health.Api.Data.StagingDbContext'.
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method95(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method95(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+2026-03-02 12:17:23.971 +02:00 [INF] Setting HTTP status code 500.
+2026-03-02 12:17:23.986 +02:00 [INF] Writing value of type 'ProblemDetails' as Json.
+2026-03-02 12:17:23.995 +02:00 [INF] Executed endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 12:17:23.999 +02:00 [WRN] Request failed: POST /api/auth/login returned 500
+2026-03-02 12:17:24.012 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 500 null application/problem+json 395.1301ms
+2026-03-02 12:30:42.691 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - null null
+2026-03-02 12:30:42.701 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 9.6584ms
+2026-03-02 12:30:42.769 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/favicon.ico - null null
+2026-03-02 12:30:42.787 +02:00 [WRN] Request failed: GET /favicon.ico returned 404
+2026-03-02 12:30:42.788 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/favicon.ico - 404 0 null 19.2362ms
+2026-03-02 12:30:42.791 +02:00 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: GET http://localhost:5171/favicon.ico, Response status code: 404
+2026-03-02 12:38:56.749 +02:00 [INF] Application is shutting down...
+2026-03-02 12:39:13.228 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:39:13.716 +02:00 [INF] Ensuring database exists...
+2026-03-02 12:39:15.117 +02:00 [INF] Executed DbCommand (92ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:39:15.213 +02:00 [INF] Executed DbCommand (55ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 12:39:15.218 +02:00 [INF] Database initialization completed
+2026-03-02 12:39:15.692 +02:00 [INF] Executed DbCommand (9ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 12:39:15.737 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 12:39:15.745 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 12:39:15.747 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 12:39:15.804 +02:00 [INF] No migrations were found in assembly 'Eswatini.Health.Api'. A migration needs to be added before the database can be updated.
+2026-03-02 12:39:15.810 +02:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:39:15.818 +02:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2026-03-02 12:39:15.854 +02:00 [INF] Executed DbCommand (32ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2026-03-02 12:39:16.041 +02:00 [INF] Executed DbCommand (22ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2026-03-02 12:39:16.095 +02:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 12:39:16.103 +02:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2026-03-02 12:39:16.117 +02:00 [INF] Executed DbCommand (11ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2026-03-02 12:39:16.127 +02:00 [INF] No migrations were applied. The database is already up to date.
+2026-03-02 12:39:16.138 +02:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2026-03-02 12:39:16.142 +02:00 [INF] API started successfully
+2026-03-02 12:39:16.159 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 12:39:16.414 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 12:39:16.417 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 12:39:16.418 +02:00 [INF] Hosting environment: Development
+2026-03-02 12:39:16.418 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 12:40:09.825 +02:00 [INF] Application is shutting down...
+2026-03-02 12:43:37.491 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:43:37.628 +02:00 [FTL] API failed to start
+Microsoft.Extensions.Hosting.HostAbortedException: The host was aborted.
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.ThrowHostAborted()
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.OnNext(KeyValuePair`2 value)
+   at System.Diagnostics.DiagnosticListener.Write(String name, Object value)
+   at Microsoft.Extensions.Hosting.HostBuilder.ResolveHost(IServiceProvider serviceProvider, DiagnosticListener diagnosticListener)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Eswatini.Health.Api.Program.Main(String[] args) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Program.cs:line 44
+2026-03-02 12:44:02.154 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:44:02.338 +02:00 [FTL] API failed to start
+Microsoft.Extensions.Hosting.HostAbortedException: The host was aborted.
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.ThrowHostAborted()
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.OnNext(KeyValuePair`2 value)
+   at System.Diagnostics.DiagnosticListener.Write(String name, Object value)
+   at Microsoft.Extensions.Hosting.HostBuilder.ResolveHost(IServiceProvider serviceProvider, DiagnosticListener diagnosticListener)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Eswatini.Health.Api.Program.Main(String[] args) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Program.cs:line 44
+2026-03-02 12:56:16.365 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:56:16.513 +02:00 [FTL] API failed to start
+Microsoft.Extensions.Hosting.HostAbortedException: The host was aborted.
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.ThrowHostAborted()
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.OnNext(KeyValuePair`2 value)
+   at System.Diagnostics.DiagnosticListener.Write(String name, Object value)
+   at Microsoft.Extensions.Hosting.HostBuilder.ResolveHost(IServiceProvider serviceProvider, DiagnosticListener diagnosticListener)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Eswatini.Health.Api.Program.Main(String[] args) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Program.cs:line 44
+2026-03-02 12:56:59.399 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 12:56:59.596 +02:00 [FTL] API failed to start
+Microsoft.Extensions.Hosting.HostAbortedException: The host was aborted.
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.ThrowHostAborted()
+   at Microsoft.Extensions.Hosting.HostFactoryResolver.HostingListener.OnNext(KeyValuePair`2 value)
+   at System.Diagnostics.DiagnosticListener.Write(String name, Object value)
+   at Microsoft.Extensions.Hosting.HostBuilder.ResolveHost(IServiceProvider serviceProvider, DiagnosticListener diagnosticListener)
+   at Microsoft.Extensions.Hosting.HostApplicationBuilder.Build()
+   at Microsoft.AspNetCore.Builder.WebApplicationBuilder.Build()
+   at Eswatini.Health.Api.Program.Main(String[] args) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Program.cs:line 44
+2026-03-02 14:40:39.506 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 14:40:40.051 +02:00 [INF] Ensuring database exists...
+2026-03-02 14:40:42.156 +02:00 [INF] Executed DbCommand (88ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:40:42.292 +02:00 [INF] Executed DbCommand (87ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 14:40:42.298 +02:00 [INF] Database initialization completed
+2026-03-02 14:40:42.919 +02:00 [INF] Executed DbCommand (38ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 14:40:42.998 +02:00 [INF] Executed DbCommand (32ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 14:40:43.037 +02:00 [INF] Executed DbCommand (28ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 14:40:43.040 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 14:40:43.253 +02:00 [INF] Executed DbCommand (24ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:40:43.264 +02:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2026-03-02 14:40:43.309 +02:00 [INF] Executed DbCommand (39ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2026-03-02 14:40:43.505 +02:00 [INF] Executed DbCommand (41ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2026-03-02 14:40:43.637 +02:00 [INF] Executed DbCommand (30ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:40:43.666 +02:00 [INF] Executed DbCommand (27ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2026-03-02 14:40:43.702 +02:00 [INF] Executed DbCommand (33ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2026-03-02 14:40:43.716 +02:00 [INF] Applying migration '20260302105700_AddTargetsTable'.
+2026-03-02 14:40:43.820 +02:00 [ERR] Failed executing DbCommand (48ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+CREATE TABLE [IndicatorTargets] (
+    [Id] int NOT NULL IDENTITY,
+    [Indicator] nvarchar(50) NOT NULL,
+    [RegionId] int NOT NULL,
+    [Year] int NOT NULL,
+    [Quarter] int NULL,
+    [Month] int NULL,
+    [TargetValue] decimal(18,2) NOT NULL,
+    [TargetType] nvarchar(20) NOT NULL DEFAULT N'number',
+    [Notes] nvarchar(500) NULL,
+    [AgeGroup] nvarchar(20) NULL,
+    [Sex] nvarchar(10) NULL,
+    [PopulationType] nvarchar(50) NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    [CreatedBy] nvarchar(36) NOT NULL,
+    CONSTRAINT [PK_IndicatorTargets] PRIMARY KEY ([Id])
+);
+2026-03-02 14:40:43.870 +02:00 [FTL] API failed to start
+Microsoft.Data.SqlClient.SqlException (0x80131904): There is already an object named 'IndicatorTargets' in the database.
+   at Microsoft.Data.SqlClient.SqlConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.SqlCommand.InternalEndExecuteNonQuery(IAsyncResult asyncResult, Boolean isInternal, String endMethod)
+   at Microsoft.Data.SqlClient.SqlCommand.EndExecuteNonQueryInternal(IAsyncResult asyncResult)
+   at Microsoft.Data.SqlClient.SqlCommand.EndExecuteNonQueryAsync(IAsyncResult asyncResult)
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<InternalExecuteNonQueryAsync>b__210_1(IAsyncResult result)
+   at System.Threading.Tasks.TaskFactory`1.FromAsyncCoreLogic(IAsyncResult iar, Func`2 endFunction, Action`1 endAction, Task`1 promise, Boolean requiresSynchronization)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList`1 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable`1 isolationLevel, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList`1 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable`1 isolationLevel, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteNonQueryAsync(IReadOnlyList`1 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean commitTransaction, Nullable`1 isolationLevel, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.<>c.<<MigrateAsync>b__22_1>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)
+   at Eswatini.Health.Api.Program.Main(String[] args) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Program.cs:line 77
+ClientConnectionId:979e0acd-8bae-4147-a249-48c5a107c395
+Error Number:2714,State:6,Class:16
+2026-03-02 14:42:14.800 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 14:42:15.620 +02:00 [INF] Ensuring database exists...
+2026-03-02 14:42:17.880 +02:00 [INF] Executed DbCommand (192ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:42:18.046 +02:00 [INF] Executed DbCommand (104ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 14:42:18.053 +02:00 [INF] Database initialization completed
+2026-03-02 14:42:18.791 +02:00 [INF] Executed DbCommand (37ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 14:42:18.918 +02:00 [INF] Executed DbCommand (31ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 14:42:18.975 +02:00 [INF] Executed DbCommand (34ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 14:42:18.982 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 14:42:18.999 +02:00 [INF] API started successfully
+2026-03-02 14:42:19.025 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 14:42:19.542 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 14:42:19.564 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 14:42:19.567 +02:00 [INF] Hosting environment: Development
+2026-03-02 14:42:19.572 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 14:47:49.879 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - null null
+2026-03-02 14:47:50.040 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 14:47:50.112 +02:00 [INF] Failed to validate the token.
+Microsoft.IdentityModel.Tokens.SecurityTokenMalformedException: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken.ReadToken(ReadOnlyMemory`1 encodedTokenMemory)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken..ctor(String jwtEncodedString)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.ReadToken(String token, TokenValidationParameters validationParameters)
+2026-03-02 14:47:50.132 +02:00 [WRN] Authentication failed: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:47:50.140 +02:00 [INF] Bearer was not authenticated. Failure message: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:47:50.156 +02:00 [INF] Authorization failed. These requirements were not met:
+RolesAuthorizationRequirement:User.IsInRole must be true for one of the following roles: (admin)
+2026-03-02 14:47:50.170 +02:00 [INF] AuthenticationScheme: Bearer was challenged.
+2026-03-02 14:47:50.177 +02:00 [WRN] Request failed: GET /api/etl/status/HTS returned 401
+2026-03-02 14:47:50.184 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - 401 0 null 307.9278ms
+2026-03-02 14:47:50.251 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/api/etl/status/PrEP - null null
+2026-03-02 14:47:50.269 +02:00 [INF] Failed to validate the token.
+Microsoft.IdentityModel.Tokens.SecurityTokenMalformedException: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken.ReadToken(ReadOnlyMemory`1 encodedTokenMemory)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken..ctor(String jwtEncodedString)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.ReadToken(String token, TokenValidationParameters validationParameters)
+2026-03-02 14:47:50.270 +02:00 [WRN] Authentication failed: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:47:50.271 +02:00 [INF] Bearer was not authenticated. Failure message: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:47:50.274 +02:00 [INF] Authorization failed. These requirements were not met:
+RolesAuthorizationRequirement:User.IsInRole must be true for one of the following roles: (admin)
+2026-03-02 14:47:50.276 +02:00 [INF] AuthenticationScheme: Bearer was challenged.
+2026-03-02 14:47:50.277 +02:00 [WRN] Request failed: GET /api/etl/status/PrEP returned 401
+2026-03-02 14:47:50.278 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/api/etl/status/PrEP - 401 0 null 26.5658ms
+2026-03-02 14:48:30.501 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 73
+2026-03-02 14:48:30.509 +02:00 [INF] Executing endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:48:30.829 +02:00 [INF] Executed DbCommand (59ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='"Text"', CommandTimeout='60']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[IsActive], [u].[LastLoginAt], [u].[Name], [u].[PasswordHash], [u].[Role], [u].[Surname], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+2026-03-02 14:48:30.862 +02:00 [ERR] An exception occurred while iterating over the results of a query for context type 'Eswatini.Health.Api.Data.StagingDbContext'.
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method97(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method97(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+2026-03-02 14:48:30.875 +02:00 [INF] Setting HTTP status code 500.
+2026-03-02 14:48:30.900 +02:00 [INF] Writing value of type 'ProblemDetails' as Json.
+2026-03-02 14:48:30.911 +02:00 [INF] Executed endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:48:30.913 +02:00 [WRN] Request failed: POST /api/auth/login returned 500
+2026-03-02 14:48:30.922 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 500 null application/problem+json 421.7557ms
+2026-03-02 14:49:31.268 +02:00 [INF] Application is shutting down...
+2026-03-02 14:50:29.185 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 14:50:29.714 +02:00 [INF] Ensuring database exists...
+2026-03-02 14:50:31.914 +02:00 [INF] Executed DbCommand (95ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:50:32.051 +02:00 [INF] Executed DbCommand (89ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 14:50:32.059 +02:00 [INF] Database initialization completed
+2026-03-02 14:50:32.589 +02:00 [INF] Executed DbCommand (32ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 14:50:32.679 +02:00 [INF] Executed DbCommand (39ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 14:50:32.723 +02:00 [INF] Executed DbCommand (35ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 14:50:32.725 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 14:50:32.736 +02:00 [INF] API started successfully
+2026-03-02 14:50:32.755 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 14:50:33.021 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 14:50:33.027 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 14:50:33.027 +02:00 [INF] Hosting environment: Development
+2026-03-02 14:50:33.028 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 14:50:44.882 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 58
+2026-03-02 14:50:44.996 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 14:50:45.032 +02:00 [INF] Executing endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:50:45.276 +02:00 [INF] Executed DbCommand (55ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='"Text"', CommandTimeout='60']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[IsActive], [u].[LastLoginAt], [u].[Name], [u].[PasswordHash], [u].[Role], [u].[Surname], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+2026-03-02 14:50:45.315 +02:00 [ERR] An exception occurred while iterating over the results of a query for context type 'Eswatini.Health.Api.Data.StagingDbContext'.
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method97(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.Data.SqlTypes.SqlNullValueException: Data is Null. This method or property cannot be called on Null values.
+   at Microsoft.Data.SqlClient.SqlBuffer.ThrowIfNull()
+   at Microsoft.Data.SqlClient.SqlBuffer.get_String()
+   at Microsoft.Data.SqlClient.SqlDataReader.GetString(Int32 i)
+   at lambda_method97(Closure, DbDataReader, Int32[])
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadObject(DbDataReader reader, Int32 ordinal, ReaderColumn column)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.ReadRow()
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.BufferedDataRecord.InitializeAsync(DbDataReader reader, IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.BufferedDataReader.InitializeAsync(IReadOnlyList`1 columns, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass30_0`2.<<ExecuteAsync>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementationAsync[TState,TResult](Func`4 operation, Func`4 verifySucceeded, TState state, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+2026-03-02 14:50:45.329 +02:00 [INF] Setting HTTP status code 500.
+2026-03-02 14:50:45.351 +02:00 [INF] Writing value of type 'ProblemDetails' as Json.
+2026-03-02 14:50:45.365 +02:00 [INF] Executed endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:50:45.367 +02:00 [WRN] Request failed: POST /api/auth/login returned 500
+2026-03-02 14:50:45.378 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 500 null application/problem+json 497.8248ms
+2026-03-02 14:50:45.411 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - null null
+2026-03-02 14:50:45.438 +02:00 [INF] Failed to validate the token.
+Microsoft.IdentityModel.Tokens.SecurityTokenMalformedException: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken.ReadToken(ReadOnlyMemory`1 encodedTokenMemory)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken..ctor(String jwtEncodedString)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.ReadToken(String token, TokenValidationParameters validationParameters)
+2026-03-02 14:50:45.440 +02:00 [WRN] Authentication failed: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:50:45.443 +02:00 [INF] Bearer was not authenticated. Failure message: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2026-03-02 14:50:45.450 +02:00 [INF] Authorization failed. These requirements were not met:
+RolesAuthorizationRequirement:User.IsInRole must be true for one of the following roles: (admin)
+2026-03-02 14:50:45.458 +02:00 [INF] AuthenticationScheme: Bearer was challenged.
+2026-03-02 14:50:45.459 +02:00 [WRN] Request failed: GET /api/etl/status/HTS returned 401
+2026-03-02 14:50:45.460 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - 401 0 null 49.0665ms
+2026-03-02 14:52:25.656 +02:00 [INF] Application is shutting down...
+2026-03-02 14:52:46.133 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 14:52:46.930 +02:00 [INF] Ensuring database exists...
+2026-03-02 14:52:48.918 +02:00 [INF] Executed DbCommand (104ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 14:52:49.075 +02:00 [INF] Executed DbCommand (108ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 14:52:49.090 +02:00 [INF] Database initialization completed
+2026-03-02 14:52:49.768 +02:00 [INF] Executed DbCommand (33ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 14:52:49.847 +02:00 [INF] Executed DbCommand (29ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 14:52:49.886 +02:00 [INF] Executed DbCommand (29ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 14:52:49.888 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 14:52:49.896 +02:00 [INF] API started successfully
+2026-03-02 14:52:49.912 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 14:52:50.184 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 14:52:50.187 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 14:52:50.188 +02:00 [INF] Hosting environment: Development
+2026-03-02 14:52:50.188 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 14:52:50.493 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/auth/login - application/json 58
+2026-03-02 14:52:50.617 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 14:52:50.655 +02:00 [INF] Executing endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:52:50.898 +02:00 [INF] Executed DbCommand (59ms) [Parameters=[@__request_Email_0='?' (Size = 255)], CommandType='"Text"', CommandTimeout='60']
+SELECT TOP(1) [u].[Id], [u].[CreatedAt], [u].[Email], [u].[IsActive], [u].[LastLoginAt], [u].[Name], [u].[PasswordHash], [u].[Role], [u].[Surname], [u].[UpdatedAt]
+FROM [Users] AS [u]
+WHERE [u].[Email] = @__request_Email_0 AND [u].[IsActive] = CAST(1 AS bit)
+2026-03-02 14:52:52.314 +02:00 [INF] Executed DbCommand (34ms) [Parameters=[@p1='?' (Size = 450), @p0='?' (DbType = DateTime2)], CommandType='"Text"', CommandTimeout='60']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+UPDATE [Users] SET [LastLoginAt] = @p0
+OUTPUT 1
+WHERE [Id] = @p1;
+2026-03-02 14:52:52.383 +02:00 [INF] Setting HTTP status code 200.
+2026-03-02 14:52:52.400 +02:00 [INF] Writing value of type '<>f__AnonymousType6`3' as Json.
+2026-03-02 14:52:52.411 +02:00 [INF] Executed endpoint 'HTTP: POST /api/auth/login => Login'
+2026-03-02 14:52:52.414 +02:00 [WRN] Slow request: POST /api/auth/login took 1793ms
+2026-03-02 14:52:52.422 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/auth/login - 200 null application/json; charset=utf-8 1932.0677ms
+2026-03-02 14:52:52.459 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - null null
+2026-03-02 14:52:52.607 +02:00 [INF] Executing endpoint 'HTTP: GET /api/etl/status/{jobName} => GetETLStatus'
+2026-03-02 14:52:52.626 +02:00 [INF] Setting HTTP status code 200.
+2026-03-02 14:52:52.652 +02:00 [INF] Writing value of type '<>f__AnonymousType15`3' as Json.
+2026-03-02 14:52:52.670 +02:00 [INF] Executed endpoint 'HTTP: GET /api/etl/status/{jobName} => GetETLStatus'
+2026-03-02 14:52:52.671 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - 200 null application/json; charset=utf-8 212.4905ms
+2026-03-02 14:53:51.218 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 14:53:51.224 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 14:53:51.243 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_125351_UTC
+2026-03-02 14:54:51.876 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 26 - Error Locating Server/Instance Specified)
+ ---> System.Net.Sockets.SocketException (0x80004005): Success
+   at Microsoft.Data.SqlClient.SNI.SSRP.GetPortByInstanceName(String browserHostName, String instanceName, Int64 timerExpire, Boolean allIPsInParallel, SqlConnectionIPAddressPreference ipPreference)
+   at Microsoft.Data.SqlClient.SNI.SNIProxy.CreateTcpHandle(DataSource details, Int64 timerExpire, Boolean parallel, SqlConnectionIPAddressPreference ipPreference, String cachedFQDN, SQLDNSInfo& pendingDNSInfo, Boolean tlsFirst, String hostNameInCertificate, String serverCertificateFilename)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 14:54:51.907 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 14:54:51.919 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 14:54:51.927 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 14:54:51.928 +02:00 [WRN] Slow request: POST /api/etl/trigger took 60706ms
+2026-03-02 14:54:51.929 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 14:54:51.930 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60711.6796ms
+2026-03-02 15:18:28.645 +02:00 [INF] Application is shutting down...
+2026-03-02 15:18:38.430 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 15:18:39.145 +02:00 [INF] Ensuring database exists...
+2026-03-02 15:18:41.366 +02:00 [INF] Executed DbCommand (104ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 15:18:41.513 +02:00 [INF] Executed DbCommand (93ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 15:18:41.520 +02:00 [INF] Database initialization completed
+2026-03-02 15:18:42.230 +02:00 [INF] Executed DbCommand (30ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 15:18:42.321 +02:00 [INF] Executed DbCommand (29ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 15:18:42.357 +02:00 [INF] Executed DbCommand (25ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 15:18:42.360 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 15:18:42.373 +02:00 [INF] API started successfully
+2026-03-02 15:18:42.399 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 15:18:42.807 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 15:18:42.812 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 15:18:42.815 +02:00 [INF] Hosting environment: Development
+2026-03-02 15:18:42.816 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 15:18:54.277 +02:00 [INF] Request starting HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - null null
+2026-03-02 15:18:54.471 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 15:18:54.663 +02:00 [INF] Executing endpoint 'HTTP: GET /api/etl/status/{jobName} => GetETLStatus'
+2026-03-02 15:18:54.689 +02:00 [INF] Setting HTTP status code 200.
+2026-03-02 15:18:54.723 +02:00 [INF] Writing value of type '<>f__AnonymousType15`3' as Json.
+2026-03-02 15:18:54.742 +02:00 [INF] Executed endpoint 'HTTP: GET /api/etl/status/{jobName} => GetETLStatus'
+2026-03-02 15:18:54.748 +02:00 [INF] Request finished HTTP/1.1 GET http://localhost:5171/api/etl/status/HTS - 200 null application/json; charset=utf-8 474.7342ms
+2026-03-02 15:19:21.834 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 15:19:21.848 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:19:21.886 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_131921_UTC
+2026-03-02 15:20:22.565 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 26 - Error Locating Server/Instance Specified)
+ ---> System.Net.Sockets.SocketException (0x80004005): Success
+   at Microsoft.Data.SqlClient.SNI.SSRP.GetPortByInstanceName(String browserHostName, String instanceName, Int64 timerExpire, Boolean allIPsInParallel, SqlConnectionIPAddressPreference ipPreference)
+   at Microsoft.Data.SqlClient.SNI.SNIProxy.CreateTcpHandle(DataSource details, Int64 timerExpire, Boolean parallel, SqlConnectionIPAddressPreference ipPreference, String cachedFQDN, SQLDNSInfo& pendingDNSInfo, Boolean tlsFirst, String hostNameInCertificate, String serverCertificateFilename)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 15:20:22.616 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 15:20:22.634 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 15:20:22.646 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:20:22.649 +02:00 [WRN] Slow request: POST /api/etl/trigger took 60805ms
+2026-03-02 15:20:22.650 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 15:20:22.655 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60820.9317ms
+2026-03-02 15:23:26.974 +02:00 [INF] Application is shutting down...
+2026-03-02 15:23:36.887 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 15:23:37.537 +02:00 [INF] Ensuring database exists...
+2026-03-02 15:23:39.515 +02:00 [INF] Executed DbCommand (106ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 15:23:39.658 +02:00 [INF] Executed DbCommand (85ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 15:23:39.666 +02:00 [INF] Database initialization completed
+2026-03-02 15:23:40.524 +02:00 [INF] Executed DbCommand (34ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 15:23:40.622 +02:00 [INF] Executed DbCommand (27ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 15:23:40.666 +02:00 [INF] Executed DbCommand (33ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 15:23:40.669 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 15:23:40.682 +02:00 [INF] API started successfully
+2026-03-02 15:23:40.706 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 15:23:41.130 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 15:23:41.143 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 15:23:41.145 +02:00 [INF] Hosting environment: Development
+2026-03-02 15:23:41.146 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 15:23:54.319 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 15:23:54.514 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 15:23:54.570 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:23:54.599 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_132354_UTC
+2026-03-02 15:24:53.743 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 26 - Error Locating Server/Instance Specified)
+ ---> System.Net.Sockets.SocketException (00000005, 0xFFFDFFFF): Name or service not known
+   at System.Net.Dns.GetHostEntryOrAddressesCore(String hostName, Boolean justAddresses, AddressFamily addressFamily, Nullable`1 activityOrDefault)
+   at System.Net.Dns.GetHostAddresses(String hostNameOrAddress, AddressFamily family)
+   at Microsoft.Data.SqlClient.SNI.SNICommon.GetDnsIpAddresses(String serverName)
+   at Microsoft.Data.SqlClient.SNI.SSRP.SendUDPRequest(String browserHostname, Int32 port, Byte[] requestPacket, Int64 timerExpire, Boolean allIPsInParallel, SqlConnectionIPAddressPreference ipPreference)
+   at Microsoft.Data.SqlClient.SNI.SSRP.GetPortByInstanceName(String browserHostName, String instanceName, Int64 timerExpire, Boolean allIPsInParallel, SqlConnectionIPAddressPreference ipPreference)
+   at Microsoft.Data.SqlClient.SNI.SNIProxy.CreateTcpHandle(DataSource details, Int64 timerExpire, Boolean parallel, SqlConnectionIPAddressPreference ipPreference, String cachedFQDN, SQLDNSInfo& pendingDNSInfo, Boolean tlsFirst, String hostNameInCertificate, String serverCertificateFilename)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 15:24:53.781 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 15:24:53.828 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 15:24:53.855 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:24:53.858 +02:00 [WRN] Slow request: POST /api/etl/trigger took 59338ms
+2026-03-02 15:24:53.859 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 15:24:53.869 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 59553.1856ms
+2026-03-02 15:55:09.965 +02:00 [INF] Application is shutting down...
+2026-03-02 15:55:26.138 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 15:55:27.064 +02:00 [INF] Ensuring database exists...
+2026-03-02 15:55:32.710 +02:00 [INF] Executed DbCommand (121ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 15:55:32.999 +02:00 [INF] Executed DbCommand (153ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 15:55:33.013 +02:00 [INF] Database initialization completed
+2026-03-02 15:55:34.500 +02:00 [INF] Executed DbCommand (43ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 15:55:34.788 +02:00 [INF] Executed DbCommand (35ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 15:55:34.851 +02:00 [INF] Executed DbCommand (34ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 15:55:34.857 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 15:55:34.895 +02:00 [INF] API started successfully
+2026-03-02 15:55:34.939 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 15:55:35.648 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 15:55:35.655 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 15:55:35.656 +02:00 [INF] Hosting environment: Development
+2026-03-02 15:55:35.657 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 15:58:08.102 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 15:58:08.324 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 15:58:08.418 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:58:08.452 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_135808_UTC
+2026-03-02 15:59:08.047 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: SQL Network Interfaces, error: 25 - Connection string is not valid)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 15:59:08.098 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 15:59:08.148 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 15:59:08.183 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 15:59:08.186 +02:00 [WRN] Slow request: POST /api/etl/trigger took 59857ms
+2026-03-02 15:59:08.188 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 15:59:08.200 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60100.442ms
+2026-03-02 15:59:52.800 +02:00 [INF] Application is shutting down...
+2026-03-02 16:00:03.635 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 16:00:04.167 +02:00 [INF] Ensuring database exists...
+2026-03-02 16:00:06.168 +02:00 [INF] Executed DbCommand (130ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 16:00:06.305 +02:00 [INF] Executed DbCommand (79ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 16:00:06.312 +02:00 [INF] Database initialization completed
+2026-03-02 16:00:07.025 +02:00 [INF] Executed DbCommand (40ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 16:00:07.114 +02:00 [INF] Executed DbCommand (27ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 16:00:07.152 +02:00 [INF] Executed DbCommand (26ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 16:00:07.154 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 16:00:07.165 +02:00 [INF] API started successfully
+2026-03-02 16:00:07.191 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 16:00:07.638 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 16:00:07.642 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 16:00:07.645 +02:00 [INF] Hosting environment: Development
+2026-03-02 16:00:07.645 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 16:00:24.919 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 16:00:25.100 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 16:00:25.155 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:00:25.183 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_140025_UTC
+2026-03-02 16:01:24.766 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 25 - Connection string is not valid)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 16:01:24.810 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 16:01:24.853 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 16:01:24.876 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:01:24.881 +02:00 [WRN] Slow request: POST /api/etl/trigger took 59773ms
+2026-03-02 16:01:24.883 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 16:01:24.893 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 59978.9542ms
+2026-03-02 16:04:19.832 +02:00 [INF] Application is shutting down...
+2026-03-02 16:04:29.577 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 16:04:30.228 +02:00 [INF] Ensuring database exists...
+2026-03-02 16:04:32.311 +02:00 [INF] Executed DbCommand (103ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 16:04:32.472 +02:00 [INF] Executed DbCommand (95ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 16:04:32.479 +02:00 [INF] Database initialization completed
+2026-03-02 16:04:33.135 +02:00 [INF] Executed DbCommand (42ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 16:04:33.229 +02:00 [INF] Executed DbCommand (31ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 16:04:33.268 +02:00 [INF] Executed DbCommand (28ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 16:04:33.272 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 16:04:33.290 +02:00 [INF] API started successfully
+2026-03-02 16:04:33.314 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 16:04:33.735 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 16:04:33.745 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 16:04:33.747 +02:00 [INF] Hosting environment: Development
+2026-03-02 16:04:33.749 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 16:06:31.234 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 16:06:31.487 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 16:06:31.581 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:06:31.618 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_140631_UTC
+2026-03-02 16:07:31.210 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: SQL Network Interfaces, error: 25 - Connection string is not valid)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 16:07:31.253 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 16:07:31.314 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 16:07:31.347 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:07:31.351 +02:00 [WRN] Slow request: POST /api/etl/trigger took 59852ms
+2026-03-02 16:07:31.352 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 16:07:31.361 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60129.7314ms
+2026-03-02 16:14:47.080 +02:00 [INF] Application is shutting down...
+2026-03-02 16:14:57.925 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 16:14:58.537 +02:00 [INF] Ensuring database exists...
+2026-03-02 16:15:00.537 +02:00 [INF] Executed DbCommand (113ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 16:15:00.744 +02:00 [INF] Executed DbCommand (141ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 16:15:00.757 +02:00 [INF] Database initialization completed
+2026-03-02 16:15:01.707 +02:00 [INF] Executed DbCommand (47ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 16:15:01.826 +02:00 [INF] Executed DbCommand (39ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 16:15:01.881 +02:00 [INF] Executed DbCommand (42ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 16:15:01.885 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 16:15:01.900 +02:00 [INF] API started successfully
+2026-03-02 16:15:01.929 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 16:15:02.456 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 16:15:02.464 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 16:15:02.465 +02:00 [INF] Hosting environment: Development
+2026-03-02 16:15:02.466 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 16:15:20.807 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 16:15:21.060 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 16:15:21.220 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:15:21.274 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_141521_UTC
+2026-03-02 16:16:20.867 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: SQL Network Interfaces, error: 25 - Connection string is not valid)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 16:16:20.917 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 16:16:20.968 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 16:16:20.994 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:16:20.997 +02:00 [WRN] Slow request: POST /api/etl/trigger took 59925ms
+2026-03-02 16:16:20.998 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 16:16:21.008 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60205.0923ms
+2026-03-02 16:42:58.369 +02:00 [INF] Application is shutting down...
+2026-03-02 16:43:08.100 +02:00 [INF] Starting Eswatini Health API
+2026-03-02 16:43:08.976 +02:00 [INF] Ensuring database exists...
+2026-03-02 16:43:11.429 +02:00 [INF] Executed DbCommand (124ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT 1
+2026-03-02 16:43:11.659 +02:00 [INF] Executed DbCommand (122ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2026-03-02 16:43:11.667 +02:00 [INF] Database initialization completed
+2026-03-02 16:43:12.613 +02:00 [INF] Executed DbCommand (56ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [Users] AS [u]
+2026-03-02 16:43:12.742 +02:00 [INF] Executed DbCommand (52ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_HIV] AS [i]
+2026-03-02 16:43:12.830 +02:00 [INF] Executed DbCommand (53ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+SELECT COUNT(*)
+FROM [IndicatorValues_Prevention] AS [i]
+2026-03-02 16:43:12.841 +02:00 [INF] Database stats - Users: 2, HIV Records: 0, Prevention Records: 0
+2026-03-02 16:43:12.891 +02:00 [INF] API started successfully
+2026-03-02 16:43:12.964 +02:00 [INF] User profile is available. Using '/home/gee/.aspnet/DataProtection-Keys' as key repository; keys will not be encrypted at rest.
+2026-03-02 16:43:13.728 +02:00 [INF] Now listening on: http://localhost:5171
+2026-03-02 16:43:13.733 +02:00 [INF] Application started. Press Ctrl+C to shut down.
+2026-03-02 16:43:13.735 +02:00 [INF] Hosting environment: Development
+2026-03-02 16:43:13.736 +02:00 [INF] Content root path: /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api
+2026-03-02 16:43:41.484 +02:00 [INF] Request starting HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - application/json 2
+2026-03-02 16:43:41.709 +02:00 [WRN] Failed to determine the https port for redirect.
+2026-03-02 16:43:41.783 +02:00 [INF] Executing endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:43:41.818 +02:00 [INF] Starting HTS ETL with batch HTS_20260302_144341_UTC
+2026-03-02 16:44:41.889 +02:00 [ERR] HTS ETL failed
+Microsoft.Data.SqlClient.SqlException (0x80131904): A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 40 - Could not open a connection to SQL Server)
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()
+--- End of stack trace from previous location ---
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.GetFacilityRegionsAsync() in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 244
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.ProcessHTSTestingAsync(String batchId) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 72
+   at Eswatini.Health.Api.Services.ETL.HTSETLService.RunAsync(String triggeredBy) in /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Services/ETL/HTSETLService.cs:line 45
+ClientConnectionId:00000000-0000-0000-0000-000000000000
+2026-03-02 16:44:41.927 +02:00 [INF] Setting HTTP status code 400.
+2026-03-02 16:44:41.982 +02:00 [INF] Writing value of type '<>f__AnonymousType13`4' as Json.
+2026-03-02 16:44:42.024 +02:00 [INF] Executed endpoint 'HTTP: POST /api/etl/trigger => TriggerETL'
+2026-03-02 16:44:42.028 +02:00 [WRN] Slow request: POST /api/etl/trigger took 60313ms
+2026-03-02 16:44:42.029 +02:00 [WRN] Request failed: POST /api/etl/trigger returned 400
+2026-03-02 16:44:42.039 +02:00 [INF] Request finished HTTP/1.1 POST http://localhost:5171/api/etl/trigger?source=hts - 400 null application/json; charset=utf-8 60558.7395ms
+2026-03-02 16:48:44.442 +02:00 [INF] Application is shutting down...

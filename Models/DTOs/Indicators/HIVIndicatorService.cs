@@ -1,0 +1,272 @@
+using Microsoft.EntityFrameworkCore;
+using Eswatini.Health.Api.Data;
+using Eswatini.Health.Api.Models.DTOs.Indicators;
+using Eswatini.Health.Api.Models.Staging;
+using Eswatini.Health.Api.Services.Period;
+
+namespace Eswatini.Health.Api.Services.Indicators;
+
+public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
+{
+    public HIVIndicatorService(
+        StagingDbContext db,
+        ILogger<HIVIndicatorService> logger,
+        IPeriodService periodService) : base(db, logger, periodService)
+    {
+    }
+
+    public async Task<List<IndicatorValueDto>> GetIndicatorDataAsync(IndicatorDataRequest request)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV.AsQueryable();
+            
+            // Apply filters
+            if (request.Indicators?.Any() == true)
+                query = query.Where(x => request.Indicators.Contains(x.Indicator));
+            
+            if (request.RegionId.HasValue)
+                query = query.Where(x => x.RegionId == request.RegionId.Value);
+            
+            if (request.StartDate.HasValue)
+                query = query.Where(x => x.VisitDate >= request.StartDate.Value);
+            
+            if (request.EndDate.HasValue)
+                query = query.Where(x => x.VisitDate <= request.EndDate.Value);
+            
+            if (!string.IsNullOrEmpty(request.AgeGroup))
+                query = query.Where(x => x.AgeGroup == request.AgeGroup);
+            
+            if (!string.IsNullOrEmpty(request.Sex))
+                query = query.Where(x => x.Sex == request.Sex);
+            
+            if (!string.IsNullOrEmpty(request.PopulationType))
+                query = query.Where(x => x.PopulationType == request.PopulationType);
+
+            var results = await query
+                .OrderBy(x => x.VisitDate)
+                .Select(x => new IndicatorValueDto
+                {
+                    Indicator = x.Indicator,
+                    RegionId = x.RegionId,
+                    RegionName = GetRegionName(x.RegionId),
+                    VisitDate = x.VisitDate,
+                    Period = _periodService.FormatDateAsPeriod(x.VisitDate, request.PeriodType ?? "daily"),
+                    AgeGroup = x.AgeGroup,
+                    Sex = x.Sex,
+                    PopulationType = x.PopulationType,
+                    Value = x.Value,
+                    LastUpdated = x.UpdatedAt
+                })
+                .ToListAsync();
+
+            // Aggregate by period if needed
+            if (request.PeriodType != "daily" && request.PeriodType != null)
+            {
+                results = results
+                    .GroupBy(x => new { x.Indicator, x.RegionId, x.Period, x.AgeGroup, x.Sex, x.PopulationType })
+                    .Select(g => new IndicatorValueDto
+                    {
+                        Indicator = g.Key.Indicator,
+                        RegionId = g.Key.RegionId,
+                        RegionName = GetRegionName(g.Key.RegionId),
+                        VisitDate = g.First().VisitDate,
+                        Period = g.Key.Period,
+                        AgeGroup = g.Key.AgeGroup,
+                        Sex = g.Key.Sex,
+                        PopulationType = g.Key.PopulationType,
+                        Value = g.Sum(x => x.Value),
+                        LastUpdated = g.Max(x => x.LastUpdated)
+                    })
+                    .OrderBy(x => x.VisitDate)
+                    .ToList();
+            }
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting HIV indicator data");
+            return new List<IndicatorValueDto>();
+        }
+    }
+
+    public async Task<Dictionary<string, List<IndicatorValueDto>>> GetIndicatorTrendsAsync(
+        string[] indicators, DateTime startDate, DateTime endDate, string periodType = "daily")
+    {
+        try
+        {
+            var request = new IndicatorDataRequest
+            {
+                Indicators = indicators,
+                StartDate = startDate,
+                EndDate = endDate,
+                PeriodType = periodType
+            };
+
+            var data = await GetIndicatorDataAsync(request);
+            
+            return data
+                .GroupBy(x => x.Indicator)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting HIV indicator trends");
+            return new Dictionary<string, List<IndicatorValueDto>>();
+        }
+    }
+
+    public async Task<bool> HasDataForPeriodAsync(string period)
+    {
+        try
+        {
+            var dateRange = _periodService.GetDateRangeForPeriod(period);
+            
+            return await _db.IndicatorValues_HIV
+                .AnyAsync(x => x.VisitDate >= dateRange.StartDate && x.VisitDate <= dateRange.EndDate);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking data for period {Period}", period);
+            return false;
+        }
+    }
+
+    public async Task<int> GetTotalOnArtAsync(DateTime date, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_CURR" && x.VisitDate <= date);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            // Get the most recent value for each region before or on the date
+            var latestValues = await query
+                .GroupBy(x => new { x.RegionId, x.AgeGroup, x.Sex, x.PopulationType })
+                .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
+                .ToListAsync();
+
+            return latestValues.Sum(x => x?.Value ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting total on ART");
+            return 0;
+        }
+    }
+
+    public async Task<int> GetNewOnArtAsync(DateTime startDate, DateTime endDate, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_NEW" 
+                    && x.VisitDate >= startDate 
+                    && x.VisitDate <= endDate);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            return await query.SumAsync(x => x.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting new on ART");
+            return 0;
+        }
+    }
+
+    public async Task<(int Tested, int Suppressed)> GetViralLoadOutcomesAsync(DateTime date, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.VisitDate <= date);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            var tested = await query
+                .Where(x => x.Indicator == "TX_VL_TESTED")
+                .GroupBy(x => x.RegionId)
+                .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
+                .SumAsync(x => x != null ? x.Value : 0);
+
+            var suppressed = await query
+                .Where(x => x.Indicator == "TX_VL_SUPPRESSED")
+                .GroupBy(x => x.RegionId)
+                .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
+                .SumAsync(x => x != null ? x.Value : 0);
+
+            return (tested, suppressed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting viral load outcomes");
+            return (0, 0);
+        }
+    }
+
+    public async Task<Dictionary<string, int>> GetBreakdownBySexAsync(string indicator, DateTime date, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == indicator && x.VisitDate <= date);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            var results = await query
+                .GroupBy(x => x.Sex)
+                .Select(g => new { Sex = g.Key, Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()!.Value })
+                .ToDictionaryAsync(x => x.Sex, x => x.Value);
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting breakdown by sex");
+            return new Dictionary<string, int>();
+        }
+    }
+
+    public async Task<Dictionary<string, int>> GetBreakdownByAgeGroupAsync(string indicator, DateTime date, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == indicator && x.VisitDate <= date);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            var results = await query
+                .GroupBy(x => x.AgeGroup)
+                .Select(g => new { AgeGroup = g.Key, Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()!.Value })
+                .ToDictionaryAsync(x => x.AgeGroup, x => x.Value);
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting breakdown by age group");
+            return new Dictionary<string, int>();
+        }
+    }
+
+    private string GetRegionName(int regionId)
+    {
+        return regionId switch
+        {
+            1 => "Hhohho",
+            2 => "Manzini",
+            3 => "Shiselweni",
+            4 => "Lubombo",
+            _ => "Unknown"
+        };
+    }
+}

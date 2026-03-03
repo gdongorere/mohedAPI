@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/Eswatini.Health.Api.props" />
+</Project>
