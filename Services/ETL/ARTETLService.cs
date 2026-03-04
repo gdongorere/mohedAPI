@@ -42,21 +42,21 @@ public class ARTETLService : IARTETLService
         {
             _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
             
-            // Load existing records for deduplication (last 90 days to catch updates)
-            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValueHIV>(_db, _logger, DateTime.UtcNow.AddDays(-90));
-            _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
+            // Load ALL existing records (no date filter!)
+            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValueHIV>(_db, _logger);
 
-            var (recordsRead, recordsInserted) = await ProcessARTOutcomesAsync(batchId, existingRecords);
+            var (recordsRead, inserted, updated, skipped) = await ProcessARTOutcomesAsync(batchId, existingRecords);
 
             result.Success = true;
             result.BatchId = batchId;
             result.RecordsRead = recordsRead;
-            result.RecordsInserted = recordsInserted;
+            result.RecordsInserted = inserted;
+            result.RecordsUpdated = updated;
             result.EndTime = DateTime.UtcNow;
 
             totalStopwatch.Stop();
             
-            ETLHelper.LogETLSummary(_logger, "ART ETL", recordsRead, recordsInserted, 0, totalStopwatch.ElapsedMilliseconds);
+            ETLHelper.LogETLSummary(_logger, "ART ETL", recordsRead, inserted, updated, skipped, totalStopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
@@ -69,13 +69,14 @@ public class ARTETLService : IARTETLService
         return result;
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessARTOutcomesAsync(
+    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessARTOutcomesAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
-        var recordsInserted = 0;
-        var duplicates = 0;
+        var inserted = 0;
+        var updated = 0;
+        var skipped = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
@@ -113,7 +114,6 @@ public class ARTETLService : IARTETLService
             if (recordsRead % 10000 == 0)
                 _logger.LogInformation("Processed {Count:N0} ART records", recordsRead);
 
-            // Handle NULL values safely
             var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
             if (string.IsNullOrEmpty(facilityCode))
                 continue;
@@ -126,10 +126,7 @@ public class ARTETLService : IARTETLService
             var sexName = reader.IsDBNull(3) ? "Other" : reader.GetString(3);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
-            {
-                _logger.LogDebug("No region mapping for facility {FacilityCode}", facilityCode);
                 continue;
-            }
 
             var sex = sexName.ToUpper() switch
             {
@@ -210,32 +207,28 @@ public class ARTETLService : IARTETLService
 
             if (allRecords.Count >= _batchSize)
             {
-                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                     allRecords, _db, _logger, batchId, existingRecords);
-                recordsInserted += inserted;
-                duplicates += dup;
+                inserted += ins;
+                updated += upd;
+                skipped += skp;
                 allRecords.Clear();
             }
         }
 
         if (allRecords.Any())
         {
-            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                 allRecords, _db, _logger, batchId, existingRecords);
-            recordsInserted += inserted;
-            duplicates += dup;
+            inserted += ins;
+            updated += upd;
+            skipped += skp;
         }
 
         stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "ART Detail", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
+        ETLHelper.LogETLSummary(_logger, "ART Detail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
-        return (recordsRead, recordsInserted);
-    }
-
-    private async Task<int> BatchInsertHIVAsync(List<IndicatorValueHIV> records, string batchId)
-    {
-        await _db.IndicatorValues_HIV.AddRangeAsync(records);
-        return await _db.SaveChangesAsync();
+        return (recordsRead, inserted, updated, skipped);
     }
 
     private async Task<Dictionary<string, int>> GetFacilityRegionsAsync()

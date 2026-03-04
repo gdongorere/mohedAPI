@@ -1,7 +1,7 @@
+using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Eswatini.Health.Api.Data;
 using Eswatini.Health.Api.Models.Staging;
-using Microsoft.EntityFrameworkCore;
-using System.Text;
 
 namespace Eswatini.Health.Api.Services.ETL;
 
@@ -12,7 +12,6 @@ public static class ETLHelper
     /// </summary>
     public static string CreateUniqueKey(string indicator, int regionId, DateTime visitDate, string ageGroup, string sex, string? populationType = null, string? tbType = null)
     {
-        // Normalize values to avoid key collisions
         var normalizedAgeGroup = ageGroup?.Trim() ?? "Unknown";
         var normalizedSex = sex?.Trim() ?? "Other";
         var normalizedPopulationType = string.IsNullOrEmpty(populationType) ? "NULL" : populationType.Trim();
@@ -22,9 +21,9 @@ public static class ETLHelper
     }
 
     /// <summary>
-    /// Batch inserts with deduplication check - returns detailed stats
+    /// Batch inserts/updates with deduplication - ALWAYS processes ALL data
     /// </summary>
-    public static async Task<(int Inserted, int Duplicates, int Updated)> BatchInsertWithDeduplicationAsync<T>(
+    public static async Task<(int Inserted, int Updated, int Skipped)> ProcessRecordsAsync<T>(
         List<T> records,
         StagingDbContext db,
         ILogger logger,
@@ -34,8 +33,8 @@ public static class ETLHelper
         if (!records.Any()) return (0, 0, 0);
 
         var newRecords = new List<T>();
-        var duplicateCount = 0;
-        var updateCount = 0;
+        var recordsToUpdate = new List<(T Record, int Id)>();
+        var skippedRecords = 0;
 
         foreach (var record in records)
         {
@@ -51,15 +50,16 @@ public static class ETLHelper
 
             if (existingRecords.TryGetValue(key, out var existing))
             {
-                // If this record is newer, we might want to update
-                if (record.UpdatedAt > existing.UpdatedAt)
+                // Compare all relevant fields to see if data changed
+                if (HasRecordChanged(record, existing.Id, db))
                 {
-                    // For now, just count it - we can implement update logic later
-                    updateCount++;
+                    recordsToUpdate.Add((record, existing.Id));
+                    // Update the dictionary with new timestamp
+                    existingRecords[key] = (record.UpdatedAt, existing.Id);
                 }
                 else
                 {
-                    duplicateCount++;
+                    skippedRecords++;
                 }
             }
             else
@@ -69,7 +69,9 @@ public static class ETLHelper
         }
 
         var inserted = 0;
+        var updated = 0;
 
+        // Insert new records
         if (newRecords.Any())
         {
             await db.AddRangeAsync(newRecords);
@@ -88,8 +90,6 @@ public static class ETLHelper
                     record is IndicatorValueTB tb ? tb.TBType : null
                 );
                 
-                // Note: We don't have the ID yet without re-querying
-                // For deduplication in the same batch, just tracking existence is enough
                 if (!existingRecords.ContainsKey(key))
                 {
                     existingRecords[key] = (record.UpdatedAt, 0);
@@ -97,31 +97,76 @@ public static class ETLHelper
             }
         }
 
-        if (duplicateCount > 0 || updateCount > 0)
+        // Update existing records
+        foreach (var (record, id) in recordsToUpdate)
         {
-            logger.LogDebug("Batch {BatchId}: {Inserted} inserted, {Duplicates} duplicates, {Updates} newer records found", 
-                batchId, inserted, duplicateCount, updateCount);
+            var existing = await db.Set<T>().FindAsync(id);
+            if (existing != null)
+            {
+                // Update all fields that could change
+                existing.Value = record.Value;
+                existing.UpdatedAt = record.UpdatedAt;
+                existing.PopulationType = record.PopulationType;
+                
+                // For TB records
+                if (existing is IndicatorValueTB existingTB && record is IndicatorValueTB newTB)
+                {
+                    existingTB.TBType = newTB.TBType;
+                }
+                
+                updated++;
+            }
+        }
+        
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync();
         }
 
-        return (inserted, duplicateCount, updateCount);
+        logger.LogInformation("Batch {BatchId}: {Inserted} inserted, {Updated} updated, {Skipped} unchanged", 
+            batchId, inserted, updated, skippedRecords);
+
+        return (inserted, updated, skippedRecords);
     }
 
     /// <summary>
-    /// Load existing records for deduplication - FIXED to handle duplicates
+    /// Check if a record has changed compared to what's in the database
     /// </summary>
-    public static async Task<Dictionary<string, (DateTime UpdatedAt, int Id)>> LoadExistingRecordsAsync<T>(
-        StagingDbContext db,
-        ILogger logger,
-        DateTime? since = null) where T : IndicatorValueBase
+    private static bool HasRecordChanged<T>(T newRecord, int existingId, StagingDbContext db) where T : IndicatorValueBase
     {
-        var query = db.Set<T>().AsQueryable();
-        
-        if (since.HasValue)
+        var existing = db.Set<T>().Local.FirstOrDefault(e => e.Id == existingId);
+        if (existing == null)
         {
-            query = query.Where(x => x.UpdatedAt >= since.Value);
+            // If not in local cache, we'll assume it might have changed
+            // In a production system, you might want to query for it
+            return true;
         }
 
-        var results = await query
+        // Compare fields that matter
+        if (existing.Value != newRecord.Value) return true;
+        if (existing.PopulationType != newRecord.PopulationType) return true;
+        
+        // For TB records
+        if (existing is IndicatorValueTB existingTB && newRecord is IndicatorValueTB newTB)
+        {
+            if (existingTB.TBType != newTB.TBType) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Load ALL existing records for deduplication (no date filter!)
+    /// </summary>
+    public static async Task<Dictionary<string, (DateTime UpdatedAt, int Id)>> LoadAllExistingRecordsAsync<T>(
+        StagingDbContext db,
+        ILogger logger) where T : IndicatorValueBase
+    {
+        logger.LogInformation("Loading ALL existing records from {TableName} for deduplication...", typeof(T).Name);
+        
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        var results = await db.Set<T>()
             .Select(x => new
             {
                 Key = CreateUniqueKey(
@@ -151,8 +196,6 @@ public static class ETLHelper
                 if (item.UpdatedAt > existing.UpdatedAt)
                 {
                     dict[item.Key] = (item.UpdatedAt, (int)item.Id);
-                    logger.LogDebug("Replaced duplicate key {Key} with newer record (old: {OldDate}, new: {NewDate})", 
-                        item.Key, existing.UpdatedAt, item.UpdatedAt);
                 }
             }
             else
@@ -161,27 +204,27 @@ public static class ETLHelper
             }
         }
 
-        if (duplicates > 0)
-        {
-            logger.LogWarning("Found {Duplicates} duplicate keys in database for {TableName}, kept most recent versions", 
-                duplicates, typeof(T).Name);
-        }
+        stopwatch.Stop();
+        
+        logger.LogInformation("Loaded {Count} unique records from {TableName} in {Elapsed}ms (found {Duplicates} duplicates)", 
+            dict.Count, typeof(T).Name, stopwatch.ElapsedMilliseconds, duplicates);
 
         return dict;
     }
 
     /// <summary>
-    /// Log ETL summary in a clean format
+    /// Log ETL summary with update information
     /// </summary>
-    public static void LogETLSummary(ILogger logger, string jobName, int recordsRead, int recordsInserted, int duplicates, long elapsedMs)
+    public static void LogETLSummary(ILogger logger, string jobName, int recordsRead, int inserted, int updated, int skipped, long elapsedMs)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"╔══════════════════════════════════════════════════════════╗");
         sb.AppendLine($"║                    {jobName,-10} SUMMARY                    ║");
         sb.AppendLine($"╠══════════════════════════════════════════════════════════╣");
         sb.AppendLine($"║  Records Read:      {recordsRead,10:N0}                              ║");
-        sb.AppendLine($"║  Records Inserted:  {recordsInserted,10:N0}                              ║");
-        sb.AppendLine($"║  Duplicates Found:  {duplicates,10:N0}                              ║");
+        sb.AppendLine($"║  Records Inserted:  {inserted,10:N0}                              ║");
+        sb.AppendLine($"║  Records Updated:   {updated,10:N0}                              ║");
+        sb.AppendLine($"║  Records Unchanged: {skipped,10:N0}                              ║");
         sb.AppendLine($"║  Time Elapsed:      {elapsedMs,10:N0}ms                              ║");
         sb.AppendLine($"╚══════════════════════════════════════════════════════════╝");
         

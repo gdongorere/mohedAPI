@@ -42,21 +42,21 @@ public class HTSETLService : IHTSETLService
         {
             _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
             
-            // Load existing records for deduplication (last 90 days to catch updates)
-            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger, DateTime.UtcNow.AddDays(-90));
-            _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
-
-            var (recordsRead, recordsInserted) = await ProcessHTSTestingAsync(batchId, existingRecords);
+            // Load ALL existing records (no date filter!)
+            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
+            
+            var (recordsRead, inserted, updated, skipped) = await ProcessHTSTestingAsync(batchId, existingRecords);
 
             result.Success = true;
             result.BatchId = batchId;
             result.RecordsRead = recordsRead;
-            result.RecordsInserted = recordsInserted;
+            result.RecordsInserted = inserted;
+            result.RecordsUpdated = updated;
             result.EndTime = DateTime.UtcNow;
 
             totalStopwatch.Stop();
             
-            ETLHelper.LogETLSummary(_logger, "HTS ETL", recordsRead, recordsInserted, 0, totalStopwatch.ElapsedMilliseconds);
+            ETLHelper.LogETLSummary(_logger, "HTS ETL", recordsRead, inserted, updated, skipped, totalStopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
@@ -69,17 +69,19 @@ public class HTSETLService : IHTSETLService
         return result;
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessHTSTestingAsync(
+    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessHTSTestingAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
-        var recordsInserted = 0;
-        var duplicates = 0;
+        var inserted = 0;
+        var updated = 0;
+        var skipped = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
 
+        // Process ALL data - no date filter!
         var query = @"
             SELECT 
                 FacilityCode,
@@ -209,32 +211,28 @@ public class HTSETLService : IHTSETLService
 
             if (allRecords.Count >= _batchSize)
             {
-                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                     allRecords, _db, _logger, batchId, existingRecords);
-                recordsInserted += inserted;
-                duplicates += dup;
+                inserted += ins;
+                updated += upd;
+                skipped += skp;
                 allRecords.Clear();
             }
         }
 
         if (allRecords.Any())
         {
-            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                 allRecords, _db, _logger, batchId, existingRecords);
-            recordsInserted += inserted;
-            duplicates += dup;
+            inserted += ins;
+            updated += upd;
+            skipped += skp;
         }
 
         stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "HTS Detail", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
+        ETLHelper.LogETLSummary(_logger, "HTS Detail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
-        return (recordsRead, recordsInserted);
-    }
-
-    private async Task<int> BatchInsertPreventionAsync(List<IndicatorValuePrevention> records, string batchId)
-    {
-        await _db.IndicatorValues_Prevention.AddRangeAsync(records);
-        return await _db.SaveChangesAsync();
+        return (recordsRead, inserted, updated, skipped);
     }
 
     private async Task<Dictionary<string, int>> GetFacilityRegionsAsync()

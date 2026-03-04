@@ -42,20 +42,20 @@ public class PrEPETLService : IPrEPETLService
         {
             _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
             
-            // Load existing records for deduplication (last 90 days to catch updates)
-            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger, DateTime.UtcNow.AddDays(-90));
-            _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
+            // Load ALL existing records (no date filter!)
+            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
 
             // Process LineListingsPrep (primary source)
-            var (prepRecordsRead, prepRecordsInserted) = await ProcessLineListingsPrepAsync(batchId, existingRecords);
+            var (prepRecordsRead, prepInserted, prepUpdated, prepSkipped) = await ProcessLineListingsPrepAsync(batchId, existingRecords);
             
             // Process aPrepDetail (secondary source)
-            var (detailRecordsRead, detailRecordsInserted) = await ProcessAPrepDetailAsync(batchId, existingRecords);
+            var (detailRecordsRead, detailInserted, detailUpdated, detailSkipped) = await ProcessAPrepDetailAsync(batchId, existingRecords);
 
             result.Success = true;
             result.BatchId = batchId;
             result.RecordsRead = prepRecordsRead + detailRecordsRead;
-            result.RecordsInserted = prepRecordsInserted + detailRecordsInserted;
+            result.RecordsInserted = prepInserted + detailInserted;
+            result.RecordsUpdated = prepUpdated + detailUpdated;
             result.EndTime = DateTime.UtcNow;
 
             totalStopwatch.Stop();
@@ -64,10 +64,12 @@ public class PrEPETLService : IPrEPETLService
             _logger.LogInformation("═══════════════════════════════════════════════════════════");
             _logger.LogInformation("📊 PrEP ETL FINAL SUMMARY");
             _logger.LogInformation("═══════════════════════════════════════════════════════════");
-            _logger.LogInformation("  Total Records Read:    {TotalRead,10:N0}", result.RecordsRead);
-            _logger.LogInformation("  Total Records Inserted: {TotalInserted,10:N0}", result.RecordsInserted);
-            _logger.LogInformation("  Batch ID:               {BatchId}", batchId);
-            _logger.LogInformation("  Time Elapsed:           {Elapsed,10:N0}ms", totalStopwatch.ElapsedMilliseconds);
+            _logger.LogInformation($"  Total Records Read:    {result.RecordsRead,15:N0}");
+            _logger.LogInformation($"  Total Records Inserted: {result.RecordsInserted,15:N0}");
+            _logger.LogInformation($"  Total Records Updated:  {result.RecordsUpdated,15:N0}");
+            _logger.LogInformation($"  Total Unchanged:        {result.RecordsRead - result.RecordsInserted - result.RecordsUpdated,15:N0}");
+            _logger.LogInformation($"  Batch ID:               {batchId}");
+            _logger.LogInformation($"  Time Elapsed:           {totalStopwatch.ElapsedMilliseconds,15:N0}ms");
             _logger.LogInformation("═══════════════════════════════════════════════════════════");
             _logger.LogInformation("");
         }
@@ -82,13 +84,14 @@ public class PrEPETLService : IPrEPETLService
         return result;
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessLineListingsPrepAsync(
+    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessLineListingsPrepAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
-        var recordsInserted = 0;
-        var duplicates = 0;
+        var inserted = 0;
+        var updated = 0;
+        var skipped = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
 
@@ -249,35 +252,38 @@ public class PrEPETLService : IPrEPETLService
 
             if (allRecords.Count >= _batchSize)
             {
-                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                     allRecords, _db, _logger, batchId, existingRecords);
-                recordsInserted += inserted;
-                duplicates += dup;
+                inserted += ins;
+                updated += upd;
+                skipped += skp;
                 allRecords.Clear();
             }
         }
 
         if (allRecords.Any())
         {
-            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                 allRecords, _db, _logger, batchId, existingRecords);
-            recordsInserted += inserted;
-            duplicates += dup;
+            inserted += ins;
+            updated += upd;
+            skipped += skp;
         }
 
         stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "LineListingsPrep", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
+        ETLHelper.LogETLSummary(_logger, "LineListingsPrep", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
-        return (recordsRead, recordsInserted);
+        return (recordsRead, inserted, updated, skipped);
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessAPrepDetailAsync(
+    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessAPrepDetailAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
-        var recordsInserted = 0;
-        var duplicates = 0;
+        var inserted = 0;
+        var updated = 0;
+        var skipped = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
 
@@ -310,7 +316,6 @@ public class PrEPETLService : IPrEPETLService
             if (recordsRead % 10000 == 0)
                 _logger.LogInformation("Processed {Count:N0} aPrepDetail records", recordsRead);
 
-            // Handle NULL values safely
             var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
             if (string.IsNullOrEmpty(facilityCode))
                 continue;
@@ -321,11 +326,9 @@ public class PrEPETLService : IPrEPETLService
 
             var ageGroup = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2);
             
-            // Handle Sex column correctly - it's TINYINT in database
             int? sexValue = null;
             if (!reader.IsDBNull(3))
             {
-                // SQL Server TINYINT maps to byte in C#
                 sexValue = reader.GetByte(3);
             }
             
@@ -343,7 +346,7 @@ public class PrEPETLService : IPrEPETLService
 
             var now = DateTime.UtcNow;
 
-            // Handle Seroconverted column correctly - it's nvarchar
+            // Handle Seroconverted column
             if (!reader.IsDBNull(5))
             {
                 var seroconverted = reader.GetString(5).Trim().ToLower();
@@ -364,7 +367,7 @@ public class PrEPETLService : IPrEPETLService
                 }
             }
 
-            // Handle InitiatedOnART column correctly - it's nvarchar
+            // Handle InitiatedOnART column
             if (!reader.IsDBNull(6))
             {
                 var initiatedOnArt = reader.GetString(6).Trim().ToLower();
@@ -387,32 +390,28 @@ public class PrEPETLService : IPrEPETLService
 
             if (allRecords.Count >= _batchSize)
             {
-                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                     allRecords, _db, _logger, batchId, existingRecords);
-                recordsInserted += inserted;
-                duplicates += dup;
+                inserted += ins;
+                updated += upd;
+                skipped += skp;
                 allRecords.Clear();
             }
         }
 
         if (allRecords.Any())
         {
-            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
                 allRecords, _db, _logger, batchId, existingRecords);
-            recordsInserted += inserted;
-            duplicates += dup;
+            inserted += ins;
+            updated += upd;
+            skipped += skp;
         }
 
         stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "aPrepDetail", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
+        ETLHelper.LogETLSummary(_logger, "aPrepDetail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
-        return (recordsRead, recordsInserted);
-    }
-
-    private async Task<int> BatchInsertPreventionAsync(List<IndicatorValuePrevention> records, string batchId)
-    {
-        await _db.IndicatorValues_Prevention.AddRangeAsync(records);
-        return await _db.SaveChangesAsync();
+        return (recordsRead, inserted, updated, skipped);
     }
 
     private async Task<Dictionary<string, int>> GetFacilityRegionsAsync()
