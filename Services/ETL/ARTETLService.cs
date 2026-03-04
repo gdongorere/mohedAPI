@@ -43,7 +43,7 @@ public class ARTETLService : IARTETLService
             _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
             
             // Load existing records for deduplication (last 90 days to catch updates)
-            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValueHIV>(_db, DateTime.UtcNow.AddDays(-90));
+            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValueHIV>(_db, _logger, DateTime.UtcNow.AddDays(-90));
             _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
 
             var (recordsRead, recordsInserted) = await ProcessARTOutcomesAsync(batchId, existingRecords);

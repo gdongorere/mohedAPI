@@ -43,7 +43,7 @@ public class PrEPETLService : IPrEPETLService
             _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
             
             // Load existing records for deduplication (last 90 days to catch updates)
-            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, DateTime.UtcNow.AddDays(-90));
+            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger, DateTime.UtcNow.AddDays(-90));
             _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
 
             // Process LineListingsPrep (primary source)

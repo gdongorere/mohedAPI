@@ -3,6 +3,7 @@ using Eswatini.Health.Api.Middleware;
 using Eswatini.Health.Api.Startup;
 using Eswatini.Health.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Eswatini.Health.Api.Services.ETL;
 
 namespace Eswatini.Health.Api;
 
@@ -35,6 +36,8 @@ public class Program
             builder.Services.AddSwaggerWithJwt();
             builder.Services.AddHealthChecks();
             builder.Services.AddHttpContextAccessor();
+
+            builder.Services.AddHostedService<ScheduledETLService>();
 
             // Add API Key authentication for ETL
             builder.Services.AddAuthentication()
