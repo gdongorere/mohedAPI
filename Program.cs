@@ -23,6 +23,12 @@ public class Program
 
         builder.Host.UseSerilog();
 
+       // **** ONLY FILTER OUT SQL COMMANDS - KEEP EVERYTHING ELSE ****
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Connection", LogLevel.Warning); // Keep connection issues
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Transaction", LogLevel.Warning); // Keep transaction issues
+        // **** END OF FILTER SECTION ****
+
         try
         {
             Log.Information("Starting Eswatini Health API");

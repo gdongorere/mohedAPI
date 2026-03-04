@@ -42,7 +42,7 @@ public class ARTETLService : IARTETLService
         {
             _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
             
-            // Load ALL existing records (no date filter!)
+            // Load ALL existing aggregated records
             var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValueHIV>(_db, _logger);
 
             var (recordsRead, inserted, updated, skipped) = await ProcessARTOutcomesAsync(batchId, existingRecords);
@@ -71,9 +71,10 @@ public class ARTETLService : IARTETLService
 
     private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessARTOutcomesAsync(
         string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
+        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
     {
         var recordsRead = 0;
+        var allRawRecords = new List<IndicatorValueHIV>();
         var inserted = 0;
         var updated = 0;
         var skipped = 0;
@@ -104,7 +105,6 @@ public class ARTETLService : IARTETLService
         using var reader = await command.ExecuteReaderAsync();
         _logger.LogInformation("Executed query, starting to read records");
 
-        var allRecords = new List<IndicatorValueHIV>();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
@@ -112,7 +112,7 @@ public class ARTETLService : IARTETLService
             recordsRead++;
             
             if (recordsRead % 10000 == 0)
-                _logger.LogInformation("Processed {Count:N0} ART records", recordsRead);
+                _logger.LogInformation("Processed {Count:N0} raw ART records", recordsRead);
 
             var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
             if (string.IsNullOrEmpty(facilityCode))
@@ -140,7 +140,7 @@ public class ARTETLService : IARTETLService
             // TX_CURR
             if (!reader.IsDBNull(4) && reader.GetInt32(4) == 1)
             {
-                allRecords.Add(new IndicatorValueHIV
+                allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_CURR",
                     RegionId = regionId,
@@ -154,10 +154,10 @@ public class ARTETLService : IARTETLService
                 });
             }
 
-            // TX_VLTested
+            // TX_VL_TESTED
             if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
             {
-                allRecords.Add(new IndicatorValueHIV
+                allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_TESTED",
                     RegionId = regionId,
@@ -171,10 +171,10 @@ public class ARTETLService : IARTETLService
                 });
             }
 
-            // TX_VLSuppressed
+            // TX_VL_SUPPRESSED
             if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
             {
-                allRecords.Add(new IndicatorValueHIV
+                allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_SUPPRESSED",
                     RegionId = regionId,
@@ -188,10 +188,10 @@ public class ARTETLService : IARTETLService
                 });
             }
 
-            // TX_VLUndetectable
+            // TX_VL_UNDETECTABLE
             if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
             {
-                allRecords.Add(new IndicatorValueHIV
+                allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_UNDETECTABLE",
                     RegionId = regionId,
@@ -205,22 +205,27 @@ public class ARTETLService : IARTETLService
                 });
             }
 
-            if (allRecords.Count >= _batchSize)
+            // Aggregate when we reach batch size
+            if (allRawRecords.Count >= _batchSize)
             {
-                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
-                    allRecords, _db, _logger, batchId, existingRecords);
+                var aggregated = ETLHelper.AggregateRecords(allRawRecords);
+                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValueHIV>(
+                    aggregated, _db, _logger, batchId, existingRecords);
+                
                 inserted += ins;
                 updated += upd;
                 skipped += skp;
-                allRecords.Clear();
+                allRawRecords.Clear();
             }
         }
 
         // Process remaining records
-        if (allRecords.Any())
+        if (allRawRecords.Any())
         {
-            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
-                allRecords, _db, _logger, batchId, existingRecords);
+            var aggregated = ETLHelper.AggregateRecords(allRawRecords);
+            var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValueHIV>(
+                aggregated, _db, _logger, batchId, existingRecords);
+            
             inserted += ins;
             updated += upd;
             skipped += skp;

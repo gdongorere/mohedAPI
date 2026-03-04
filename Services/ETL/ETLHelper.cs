@@ -8,9 +8,9 @@ namespace Eswatini.Health.Api.Services.ETL;
 public static class ETLHelper
 {
     /// <summary>
-    /// Creates a unique key for deduplication based on all relevant columns
+    /// Creates a unique key for aggregation based on all dimension columns
     /// </summary>
-    public static string CreateUniqueKey(string indicator, int regionId, DateTime visitDate, string ageGroup, string sex, string? populationType = null, string? tbType = null)
+    public static string CreateAggregationKey(string indicator, int regionId, DateTime visitDate, string ageGroup, string sex, string? populationType = null, string? tbType = null)
     {
         var normalizedAgeGroup = ageGroup?.Trim() ?? "Unknown";
         var normalizedSex = sex?.Trim() ?? "Other";
@@ -21,50 +21,64 @@ public static class ETLHelper
     }
 
     /// <summary>
-    /// Creates a unique key from an IndicatorValueBase record
+    /// Aggregates records by dimensions and returns dictionary of counts
     /// </summary>
-    public static string CreateUniqueKey(IndicatorValueBase record)
+    public static Dictionary<string, int> AggregateRecords<T>(
+        List<T> records) where T : IndicatorValueBase
     {
-        return CreateUniqueKey(
-            record.Indicator,
-            record.RegionId,
-            record.VisitDate,
-            record.AgeGroup,
-            record.Sex,
-            record.PopulationType,
-            record is IndicatorValueTB tb ? tb.TBType : null
-        );
-    }
-
-    /// <summary>
-    /// Batch inserts/updates with OPTIMIZED batch updates
-    /// </summary>
-    public static async Task<(int Inserted, int Updated, int Skipped)> ProcessRecordsAsync<T>(
-        List<T> records,
-        StagingDbContext db,
-        ILogger logger,
-        string batchId,
-        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords) where T : IndicatorValueBase
-    {
-        if (!records.Any()) return (0, 0, 0);
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var newRecords = new List<T>();
-        var updatesDict = new Dictionary<int, T>(); // Id -> Updated record
-        var skippedRecords = 0;
+        var aggregated = new Dictionary<string, int>();
 
         foreach (var record in records)
         {
-            var key = CreateUniqueKey(record);
+            var key = CreateAggregationKey(
+                record.Indicator,
+                record.RegionId,
+                record.VisitDate,
+                record.AgeGroup,
+                record.Sex,
+                record.PopulationType,
+                record is IndicatorValueTB tb ? tb.TBType : null
+            );
+
+            if (aggregated.ContainsKey(key))
+                aggregated[key] += record.Value;
+            else
+                aggregated[key] = record.Value;
+        }
+
+        return aggregated;
+    }
+
+    /// <summary>
+    /// Batch upsert of aggregated counts
+    /// </summary>
+    public static async Task<(int Inserted, int Updated, int Skipped)> UpsertAggregatedRecordsAsync<T>(
+        Dictionary<string, int> aggregatedRecords,
+        StagingDbContext db,
+        ILogger logger,
+        string batchId,
+        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords) where T : IndicatorValueBase, new()
+    {
+        if (!aggregatedRecords.Any()) return (0, 0, 0);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var recordsToInsert = new List<T>();
+        var updatesDict = new Dictionary<int, int>(); // Id -> New Value
+        var skippedRecords = 0;
+
+        foreach (var kvp in aggregatedRecords)
+        {
+            var key = kvp.Key;
+            var newValue = kvp.Value;
 
             if (existingRecords.TryGetValue(key, out var existing))
             {
-                // If this record is newer, UPDATE it
-                if (record.UpdatedAt > existing.UpdatedAt)
+                // If value changed, update it
+                if (newValue != existing.Value)
                 {
-                    updatesDict[existing.Id] = record;
-                    // Update the dictionary with new timestamp
-                    existingRecords[key] = (record.UpdatedAt, existing.Id);
+                    updatesDict[existing.Id] = newValue;
+                    // Update the dictionary with new value and timestamp
+                    existingRecords[key] = (DateTime.UtcNow, existing.Id, newValue);
                 }
                 else
                 {
@@ -73,133 +87,168 @@ public static class ETLHelper
             }
             else
             {
-                newRecords.Add(record);
+                // Parse the key to create a new record
+                var parts = key.Split('|');
+                var record = new T
+                {
+                    Indicator = parts[0],
+                    RegionId = int.Parse(parts[1]),
+                    VisitDate = DateTime.Parse(parts[2]),
+                    AgeGroup = parts[3],
+                    Sex = parts[4],
+                    PopulationType = parts[5] == "NULL" ? null : parts[5],
+                    Value = newValue,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                // For TB records
+                if (record is IndicatorValueTB tbRecord && parts.Length > 6)
+                {
+                    tbRecord.TBType = parts[6] == "NULL" ? null : parts[6];
+                }
+
+                recordsToInsert.Add(record);
             }
         }
 
         var inserted = 0;
         var updated = 0;
 
-        // FAST PATH 1: Batch insert new records
-        if (newRecords.Any())
+        // Insert new records
+        if (recordsToInsert.Any())
         {
-            await db.AddRangeAsync(newRecords);
+            await db.AddRangeAsync(recordsToInsert);
             inserted = await db.SaveChangesAsync();
             
-            // Add newly inserted records to existing records dictionary
-            foreach (var record in newRecords)
-            {
-                var key = CreateUniqueKey(record);
-                if (!existingRecords.ContainsKey(key))
-                {
-                    existingRecords[key] = (record.UpdatedAt, 0);
-                }
-            }
+            logger.LogDebug("Batch {BatchId}: Inserted {Count} new aggregated records", 
+                batchId, inserted);
         }
 
-        // FAST PATH 2: Batch update using single SQL command
+        // Update existing records
         if (updatesDict.Any())
         {
-            updated = await BatchUpdateRecordsAsync(db, updatesDict, logger);
+            updated = await BatchUpdateValuesAsync(db, updatesDict, logger, typeof(T).Name);
+            logger.LogDebug("Batch {BatchId}: Updated {Count} records with new values", 
+                batchId, updated);
         }
 
         stopwatch.Stop();
         
-        if (inserted > 0 || updated > 0)
-        {
-            logger.LogDebug("Batch {BatchId}: {Inserted} inserted, {Updated} updated, {Skipped} unchanged in {Elapsed}ms", 
-                batchId, inserted, updated, skippedRecords, stopwatch.ElapsedMilliseconds);
-        }
+        logger.LogInformation("Batch {BatchId}: {Inserted} inserted, {Updated} updated, {Skipped} unchanged in {Elapsed}ms", 
+            batchId, inserted, updated, skippedRecords, stopwatch.ElapsedMilliseconds);
 
         return (inserted, updated, skippedRecords);
     }
 
     /// <summary>
-    /// ULTRA-FAST batch update using single SQL command
+    /// Batch update just the Value column
     /// </summary>
-    private static async Task<int> BatchUpdateRecordsAsync<T>(
+    private static async Task<int> BatchUpdateValuesAsync(
         StagingDbContext db,
-        Dictionary<int, T> updatesDict,
-        ILogger logger) where T : IndicatorValueBase
+        Dictionary<int, int> updatesDict,
+        ILogger logger,
+        string tableName)
     {
         if (!updatesDict.Any()) return 0;
 
-        var tableName = GetTableName<T>();
-        var ids = updatesDict.Keys.ToList();
+        var totalUpdated = 0;
         
-        logger.LogDebug("Batch updating {Count} records in {TableName} using single SQL command", 
-            updatesDict.Count, tableName);
+        // Process in chunks of 1000 to avoid SQL limits
+        var chunkSize = 1000;
+        var chunks = updatesDict.Chunk(chunkSize);
+        var chunkNumber = 0;
 
-        // Build CASE statements for each field
-        var valueCases = new StringBuilder();
-        var updatedAtCases = new StringBuilder();
-        var populationTypeCases = new StringBuilder();
-        
-        foreach (var kvp in updatesDict)
+        foreach (var chunk in chunks)
         {
-            var record = kvp.Value;
-            valueCases.AppendLine($"        WHEN {kvp.Key} THEN {record.Value}");
-            updatedAtCases.AppendLine($"        WHEN {kvp.Key} THEN '{record.UpdatedAt:yyyy-MM-dd HH:mm:ss}'");
+            chunkNumber++;
+            var chunkDict = chunk.ToDictionary(x => x.Key, x => x.Value);
             
-            var popType = record.PopulationType?.Replace("'", "''") ?? "NULL";
-            populationTypeCases.AppendLine($"        WHEN {kvp.Key} THEN '{popType}'");
+            logger.LogDebug("Processing update chunk {ChunkNumber} with {Count} records", 
+                chunkNumber, chunkDict.Count);
+
+            var ids = chunkDict.Keys.ToList();
+            var valueCases = new StringBuilder();
+            
+            foreach (var kvp in chunkDict)
+            {
+                valueCases.AppendLine($"        WHEN {kvp.Key} THEN {kvp.Value}");
+            }
+
+            var sql = $@"
+                UPDATE [{tableName}] SET
+                    [Value] = CASE [Id]
+                        {valueCases}
+                        ELSE [Value]
+                    END,
+                    [UpdatedAt] = GETUTCDATE()
+                WHERE [Id] IN ({string.Join(",", ids)})";
+
+            try
+            {
+                var updated = await db.Database.ExecuteSqlRawAsync(sql);
+                totalUpdated += updated;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error updating chunk {ChunkNumber}, falling back to individual updates", chunkNumber);
+                
+                // Fallback to individual updates
+                foreach (var kvp in chunkDict)
+                {
+                    try
+                    {
+                        var individualSql = $@"
+                            UPDATE [{tableName}] SET
+                                [Value] = {kvp.Value},
+                                [UpdatedAt] = GETUTCDATE()
+                            WHERE [Id] = {kvp.Key}";
+                        
+                        await db.Database.ExecuteSqlRawAsync(individualSql);
+                        totalUpdated++;
+                    }
+                    catch (Exception indivEx)
+                    {
+                        logger.LogError(indivEx, "Failed to update individual record Id: {Id}", kvp.Key);
+                    }
+                }
+            }
         }
 
-        var sql = $@"
-            UPDATE [{tableName}] SET
-                [Value] = CASE [Id]
-                    {valueCases}
-                    ELSE [Value]
-                END,
-                [UpdatedAt] = CASE [Id]
-                    {updatedAtCases}
-                    ELSE [UpdatedAt]
-                END,
-                [PopulationType] = CASE [Id]
-                    {populationTypeCases}
-                    ELSE [PopulationType]
-                END
-            WHERE [Id] IN ({string.Join(",", ids)})";
-
-        return await db.Database.ExecuteSqlRawAsync(sql);
+        return totalUpdated;
     }
 
     /// <summary>
-    /// Get table name for entity type
+    /// Load ALL existing records for aggregation (no date filter!)
     /// </summary>
-    private static string GetTableName<T>() where T : IndicatorValueBase
-    {
-        return typeof(T) switch
-        {
-            var t when t == typeof(IndicatorValuePrevention) => "IndicatorValues_Prevention",
-            var t when t == typeof(IndicatorValueHIV) => "IndicatorValues_HIV",
-            var t when t == typeof(IndicatorValueTB) => "IndicatorValues_TB",
-            _ => throw new ArgumentException($"Unknown type: {typeof(T).Name}")
-        };
-    }
-
-    /// <summary>
-    /// Load ALL existing records for deduplication (no date filter!)
-    /// </summary>
-    public static async Task<Dictionary<string, (DateTime UpdatedAt, int Id)>> LoadAllExistingRecordsAsync<T>(
+    public static async Task<Dictionary<string, (DateTime UpdatedAt, int Id, int Value)>> LoadAllExistingRecordsAsync<T>(
         StagingDbContext db,
         ILogger logger) where T : IndicatorValueBase
     {
-        logger.LogInformation("Loading ALL existing records from {TableName} for deduplication...", typeof(T).Name);
+        logger.LogInformation("Loading ALL existing records from {TableName} for aggregation...", typeof(T).Name);
         
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
         var results = await db.Set<T>()
             .Select(x => new
             {
-                Key = CreateUniqueKey(x),
+                Key = CreateAggregationKey(
+                    x.Indicator,
+                    x.RegionId,
+                    x.VisitDate,
+                    x.AgeGroup,
+                    x.Sex,
+                    x.PopulationType,
+                    (x as IndicatorValueTB).TBType 
+                ),
                 x.UpdatedAt,
-                x.Id
+                x.Id,
+                x.Value
             })
             .ToListAsync();
 
         // Handle duplicates by keeping the most recent one
-        var dict = new Dictionary<string, (DateTime UpdatedAt, int Id)>(StringComparer.OrdinalIgnoreCase);
+        var dict = new Dictionary<string, (DateTime UpdatedAt, int Id, int Value)>(StringComparer.OrdinalIgnoreCase);
         var duplicates = 0;
 
         foreach (var item in results)
@@ -210,25 +259,25 @@ public static class ETLHelper
                 // Keep the most recent record
                 if (item.UpdatedAt > existing.UpdatedAt)
                 {
-                    dict[item.Key] = (item.UpdatedAt, (int)item.Id);
+                    dict[item.Key] = (item.UpdatedAt, (int)item.Id, item.Value);
                 }
             }
             else
             {
-                dict.Add(item.Key, (item.UpdatedAt, (int)item.Id));
+                dict.Add(item.Key, (item.UpdatedAt, (int)item.Id, item.Value));
             }
         }
 
         stopwatch.Stop();
         
-        logger.LogInformation("Loaded {Count:N0} unique records from {TableName} in {Elapsed}ms (found {Duplicates:N0} duplicates)", 
+        logger.LogInformation("Loaded {Count:N0} unique aggregated records from {TableName} in {Elapsed}ms (found {Duplicates:N0} duplicates)", 
             dict.Count, typeof(T).Name, stopwatch.ElapsedMilliseconds, duplicates);
 
         return dict;
     }
 
     /// <summary>
-    /// Log ETL summary with update information
+    /// Log ETL summary
     /// </summary>
     public static void LogETLSummary(ILogger logger, string jobName, int recordsRead, int inserted, int updated, int skipped, long elapsedMs)
     {
@@ -236,13 +285,30 @@ public static class ETLHelper
         sb.AppendLine($"╔══════════════════════════════════════════════════════════╗");
         sb.AppendLine($"║                    {jobName,-10} SUMMARY                    ║");
         sb.AppendLine($"╠══════════════════════════════════════════════════════════╣");
-        sb.AppendLine($"║  Records Read:      {recordsRead,10:N0}                              ║");
-        sb.AppendLine($"║  Records Inserted:  {inserted,10:N0}                              ║");
-        sb.AppendLine($"║  Records Updated:   {updated,10:N0}                              ║");
-        sb.AppendLine($"║  Records Unchanged: {skipped,10:N0}                              ║");
+        sb.AppendLine($"║  Raw Records Read:  {recordsRead,10:N0}                              ║");
+        sb.AppendLine($"║  Aggregated Insert: {inserted,10:N0}                              ║");
+        sb.AppendLine($"║  Aggregated Update: {updated,10:N0}                              ║");
+        sb.AppendLine($"║  Unchanged Groups:  {skipped,10:N0}                              ║");
         sb.AppendLine($"║  Time Elapsed:      {elapsedMs,10:N0}ms                              ║");
         sb.AppendLine($"╚══════════════════════════════════════════════════════════╝");
         
         logger.LogInformation(sb.ToString());
+    }
+}
+
+/// <summary>
+/// Extension methods for IEnumerable
+/// </summary>
+public static class EnumerableExtensions
+{
+    public static IEnumerable<IEnumerable<T>> Chunk<T>(this IEnumerable<T> source, int chunkSize)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (chunkSize <= 0) throw new ArgumentException("Chunk size must be positive", nameof(chunkSize));
+
+        return source
+            .Select((x, i) => new { Index = i, Value = x })
+            .GroupBy(x => x.Index / chunkSize)
+            .Select(g => g.Select(x => x.Value));
     }
 }

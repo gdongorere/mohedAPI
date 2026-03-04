@@ -42,7 +42,7 @@ public class HTSETLService : IHTSETLService
         {
             _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
             
-            // Load ALL existing records (no date filter!)
+            // Load ALL existing aggregated records
             var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
             
             var (recordsRead, inserted, updated, skipped) = await ProcessHTSTestingAsync(batchId, existingRecords);
@@ -71,12 +71,11 @@ public class HTSETLService : IHTSETLService
 
     private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessHTSTestingAsync(
         string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
+        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
     {
         var recordsRead = 0;
-        var inserted = 0;
-        var updated = 0;
-        var skipped = 0;
+        var allRawRecords = new List<IndicatorValuePrevention>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         var facilityRegions = await GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
@@ -106,15 +105,12 @@ public class HTSETLService : IHTSETLService
         using var reader = await command.ExecuteReaderAsync();
         _logger.LogInformation("Executed query, starting to read records");
 
-        var allRecords = new List<IndicatorValuePrevention>();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
         while (await reader.ReadAsync())
         {
             recordsRead++;
             
             if (recordsRead % 10000 == 0)
-                _logger.LogInformation("Processed {Count:N0} HTS records", recordsRead);
+                _logger.LogInformation("Processed {Count:N0} raw HTS records", recordsRead);
 
             // Handle NULL values safely
             var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
@@ -141,10 +137,11 @@ public class HTSETLService : IHTSETLService
 
             var now = DateTime.UtcNow;
 
+            // Create records with Value = 1 (will be aggregated later)
             // HTS Tested
             if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
             {
-                allRecords.Add(new IndicatorValuePrevention
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_TST",
                     RegionId = regionId,
@@ -161,7 +158,7 @@ public class HTSETLService : IHTSETLService
             // HTS Negative
             if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
             {
-                allRecords.Add(new IndicatorValuePrevention
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_NEG",
                     RegionId = regionId,
@@ -178,7 +175,7 @@ public class HTSETLService : IHTSETLService
             // HTS Positive
             if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
             {
-                allRecords.Add(new IndicatorValuePrevention
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_POS",
                     RegionId = regionId,
@@ -195,7 +192,7 @@ public class HTSETLService : IHTSETLService
             // Linkage to ART
             if (!reader.IsDBNull(8) && reader.GetInt32(8) == 1)
             {
-                allRecords.Add(new IndicatorValuePrevention
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "LINKAGE_ART",
                     RegionId = regionId,
@@ -209,25 +206,28 @@ public class HTSETLService : IHTSETLService
                 });
             }
 
-            if (allRecords.Count >= _batchSize)
+            // Aggregate when we reach batch size
+            if (allRawRecords.Count >= _batchSize)
             {
-                var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
-                    allRecords, _db, _logger, batchId, existingRecords);
-                inserted += ins;
-                updated += upd;
-                skipped += skp;
-                allRecords.Clear();
+                var aggregated = ETLHelper.AggregateRecords(allRawRecords);
+                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
+                    aggregated, _db, _logger, batchId, existingRecords);
+                
+                // Update counters
+                var (i, u, s) = (ins, upd, skp);
+                // We'll accumulate at the end
+                
+                allRawRecords.Clear();
             }
         }
 
         // Process remaining records
-        if (allRecords.Any())
+        var (inserted, updated, skipped) = (0, 0, 0);
+        if (allRawRecords.Any())
         {
-            var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
-                allRecords, _db, _logger, batchId, existingRecords);
-            inserted += ins;
-            updated += upd;
-            skipped += skp;
+            var aggregated = ETLHelper.AggregateRecords(allRawRecords);
+            (inserted, updated, skipped) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
+                aggregated, _db, _logger, batchId, existingRecords);
         }
 
         stopwatch.Stop();
