@@ -31,37 +31,75 @@ public class ETLService : IETLService
 
     public async Task<ETLResult> RunETLForSourceAsync(string source, string triggeredBy = "system")
     {
-        ETLResult result = source.ToLower() switch
+        _logger.LogInformation("▶️ Starting ETL for source: {Source} (triggered by: {TriggeredBy})", source, triggeredBy);
+        
+        // Use execution strategy for retry support
+        var strategy = _db.Database.CreateExecutionStrategy();
+        
+        return await strategy.ExecuteAsync(async () =>
         {
-            "hts" => await _htsETL.RunAsync(triggeredBy),
-            "prep" => await _prepETL.RunAsync(triggeredBy),
-            "art" => await _artETL.RunAsync(triggeredBy),
-            _ => throw new ArgumentException($"Unknown source: {source}")
-        };
+            // Start a transaction
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            
+            try
+            {
+                ETLResult result = source.ToLower() switch
+                {
+                    "hts" => await _htsETL.RunAsync(triggeredBy),
+                    "prep" => await _prepETL.RunAsync(triggeredBy),
+                    "art" => await _artETL.RunAsync(triggeredBy),
+                    _ => throw new ArgumentException($"Unknown source: {source}")
+                };
 
-        // Record history
-        _jobHistory.Add(new ETLJobHistoryDto
-        {
-            Id = _jobHistory.Count + 1,
-            JobName = result.JobName,
-            BatchId = result.BatchId,
-            StartTime = result.StartTime,
-            EndTime = result.EndTime,
-            Status = result.Success ? "completed" : "failed",
-            RecordsRead = result.RecordsRead,
-            RecordsInserted = result.RecordsInserted,
-            ErrorMessage = result.ErrorMessage,
-            TriggeredBy = triggeredBy
+                // Commit transaction if successful
+                if (result.Success)
+                {
+                    await transaction.CommitAsync();
+                }
+                else
+                {
+                    await transaction.RollbackAsync();
+                }
+
+                // Record history
+                _jobHistory.Add(new ETLJobHistoryDto
+                {
+                    Id = _jobHistory.Count + 1,
+                    JobName = result.JobName,
+                    BatchId = result.BatchId,
+                    StartTime = result.StartTime,
+                    EndTime = result.EndTime,
+                    Status = result.Success ? "completed" : "failed",
+                    RecordsRead = result.RecordsRead,
+                    RecordsInserted = result.RecordsInserted,
+                    ErrorMessage = result.ErrorMessage,
+                    TriggeredBy = triggeredBy
+                });
+
+                // Keep only last 1000 records
+                if (_jobHistory.Count > 1000)
+                    _jobHistory.RemoveAt(0);
+
+                _logger.LogInformation("✅ ETL completed for source: {Source} - Success: {Success}, Inserted: {Inserted:N0}, Duration: {Duration}ms", 
+                    source, result.Success, result.RecordsInserted, result.DurationMs);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "❌ ETL failed for source: {Source}", source);
+                throw;
+            }
         });
-
-        // Keep only last 1000 records
-        if (_jobHistory.Count > 1000)
-            _jobHistory.RemoveAt(0);
-
-        return result;
     }
 
-    public async Task<ETLJobStatusDto> GetJobStatusAsync(string jobName)
+    public Task<ETLJobStatusDto> GetJobStatusAsync(string jobName)
+    {
+        return Task.FromResult(GetJobStatusSync(jobName));
+    }
+
+    private ETLJobStatusDto GetJobStatusSync(string jobName)
     {
         var lastRun = _jobHistory
             .Where(j => j.JobName.Contains(jobName, StringComparison.OrdinalIgnoreCase))
@@ -88,7 +126,12 @@ public class ETLService : IETLService
         };
     }
 
-    public async Task<List<ETLJobHistoryDto>> GetETLHistoryAsync(string? jobName = null, int limit = 100)
+    public Task<List<ETLJobHistoryDto>> GetETLHistoryAsync(string? jobName = null, int limit = 100)
+    {
+        return Task.FromResult(GetETLHistorySync(jobName, limit));
+    }
+
+    private List<ETLJobHistoryDto> GetETLHistorySync(string? jobName = null, int limit = 100)
     {
         var query = _jobHistory.AsEnumerable();
 
@@ -101,7 +144,12 @@ public class ETLService : IETLService
             .ToList();
     }
 
-    public async Task<Dictionary<string, LastRunInfoDto>> GetLastRunTimesAsync()
+    public Task<Dictionary<string, LastRunInfoDto>> GetLastRunTimesAsync()
+    {
+        return Task.FromResult(GetLastRunTimesSync());
+    }
+
+    private Dictionary<string, LastRunInfoDto> GetLastRunTimesSync()
     {
         var jobs = new[] { "HTS", "PrEP", "ART" };
         var result = new Dictionary<string, LastRunInfoDto>();
@@ -119,7 +167,7 @@ public class ETLService : IETLService
                 {
                     "HTS" => "tmpHTSTestedDetail",
                     "PrEP" => "LineListingsPrep, aPrepDetail",
-                    "ART" => "TBD",
+                    "ART" => "tmpARTTXOutcomes",
                     _ => "Unknown"
                 },
                 TargetTable = job switch
@@ -130,7 +178,7 @@ public class ETLService : IETLService
                     _ => "Unknown"
                 },
                 LastRunTime = lastRun?.EndTime ?? lastRun?.StartTime,
-                LastBatchId = int.TryParse(lastRun?.BatchId, out var batchId) ? batchId.ToString() : "0",
+                LastBatchId = lastRun?.BatchId ?? "never_run",
                 Status = lastRun?.Status ?? "never_run",
                 RecordCount = lastRun?.RecordsInserted ?? 0
             };

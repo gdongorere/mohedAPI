@@ -9,7 +9,7 @@ public static class TargetEndpoints
 {
     public static IEndpointRouteBuilder MapTargetEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/targets");
+        var group = app.MapGroup("/targets");
 
         // GET endpoints - Admin only (as requested)
         group.MapGet("/", GetTargets)

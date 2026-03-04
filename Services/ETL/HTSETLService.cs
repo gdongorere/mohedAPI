@@ -36,13 +36,17 @@ public class HTSETLService : IHTSETLService
         };
 
         var batchId = $"HTS_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
-            _logger.LogInformation("Starting HTS ETL with batch {BatchId}", batchId);
+            _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
+            
+            // Load existing records for deduplication (last 90 days to catch updates)
+            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, DateTime.UtcNow.AddDays(-90));
+            _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
 
-            // Process HTS Testing data
-            var (recordsRead, recordsInserted) = await ProcessHTSTestingAsync(batchId);
+            var (recordsRead, recordsInserted) = await ProcessHTSTestingAsync(batchId, existingRecords);
 
             result.Success = true;
             result.BatchId = batchId;
@@ -50,28 +54,32 @@ public class HTSETLService : IHTSETLService
             result.RecordsInserted = recordsInserted;
             result.EndTime = DateTime.UtcNow;
 
-            _logger.LogInformation("HTS ETL completed: {RecordsInserted} records inserted", recordsInserted);
+            totalStopwatch.Stop();
+            
+            ETLHelper.LogETLSummary(_logger, "HTS ETL", recordsRead, recordsInserted, 0, totalStopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             result.Success = false;
             result.ErrorMessage = ex.Message;
             result.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "HTS ETL failed");
+            _logger.LogError(ex, "❌ HTS ETL failed: {Message}", ex.Message);
         }
 
         return result;
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessHTSTestingAsync(string batchId)
+    private async Task<(int RecordsRead, int RecordsInserted)> ProcessHTSTestingAsync(
+        string batchId, 
+        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
         var recordsInserted = 0;
+        var duplicates = 0;
 
-        // Get facility-region mapping
         var facilityRegions = await GetFacilityRegionsAsync();
+        _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
 
-        // Query source data
         var query = @"
             SELECT 
                 FacilityCode,
@@ -84,33 +92,43 @@ public class HTSETLService : IHTSETLService
                 HTS_TestedPositive,
                 HTS_TestedPositiveInitiatedOnART
             FROM [All_Dataset].[dbo].[tmpHTSTestedDetail]
-            WHERE VisitDate >= DATEADD(day, -7, GETDATE()) -- Last 7 days, adjust as needed
+            WHERE VisitDate IS NOT NULL
             ORDER BY VisitDate";
 
         using var connection = new SqlConnection(_sourceConnectionString);
         using var command = new SqlCommand(query, connection);
         
         await connection.OpenAsync();
+        _logger.LogInformation("Connected to source database");
+        
         using var reader = await command.ExecuteReaderAsync();
+        _logger.LogInformation("Executed query, starting to read records");
 
-        var htsTests = new List<IndicatorValuePrevention>();
-        var htsPositives = new List<IndicatorValuePrevention>();
-        var htsNegatives = new List<IndicatorValuePrevention>();
-        var linkages = new List<IndicatorValuePrevention>();
+        var allRecords = new List<IndicatorValuePrevention>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
             recordsRead++;
             
-            var facilityCode = reader.GetString(0);
-            var visitDate = reader.GetDateTime(1);
+            if (recordsRead % 10000 == 0)
+                _logger.LogInformation("Processed {Count:N0} HTS records", recordsRead);
+
+            // Handle NULL values safely
+            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
+            if (string.IsNullOrEmpty(facilityCode))
+                continue;
+
+            var visitDate = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1);
+            if (!visitDate.HasValue)
+                continue;
+
             var ageGroup = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2);
             var sexName = reader.IsDBNull(3) ? "Other" : reader.GetString(3);
             var populationGroup = reader.IsDBNull(4) ? null : reader.GetString(4);
             
-            // Get region from facility mapping
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
-                continue; // Skip if facility not mapped
+                continue;
 
             var sex = sexName.ToUpper() switch
             {
@@ -119,106 +137,96 @@ public class HTSETLService : IHTSETLService
                 _ => "Other"
             };
 
+            var now = DateTime.UtcNow;
+
             // HTS Tested
             if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
             {
-                htsTests.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_TST",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationGroup,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // HTS Negative
             if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
             {
-                htsNegatives.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_NEG",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationGroup,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // HTS Positive
             if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
             {
-                htsPositives.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "HTS_POS",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationGroup,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // Linkage to ART
             if (!reader.IsDBNull(8) && reader.GetInt32(8) == 1)
             {
-                linkages.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "LINKAGE_ART",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationGroup,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
-            // Batch insert when we reach batch size
-            if (htsTests.Count >= _batchSize)
+            if (allRecords.Count >= _batchSize)
             {
-                recordsInserted += await BatchInsertPreventionAsync(htsTests, batchId);
-                htsTests.Clear();
-            }
-            if (htsPositives.Count >= _batchSize)
-            {
-                recordsInserted += await BatchInsertPreventionAsync(htsPositives, batchId);
-                htsPositives.Clear();
-            }
-            if (htsNegatives.Count >= _batchSize)
-            {
-                recordsInserted += await BatchInsertPreventionAsync(htsNegatives, batchId);
-                htsNegatives.Clear();
-            }
-            if (linkages.Count >= _batchSize)
-            {
-                recordsInserted += await BatchInsertPreventionAsync(linkages, batchId);
-                linkages.Clear();
+                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                    allRecords, _db, _logger, batchId, existingRecords);
+                recordsInserted += inserted;
+                duplicates += dup;
+                allRecords.Clear();
             }
         }
 
-        // Insert remaining records
-        if (htsTests.Any())
-            recordsInserted += await BatchInsertPreventionAsync(htsTests, batchId);
-        if (htsPositives.Any())
-            recordsInserted += await BatchInsertPreventionAsync(htsPositives, batchId);
-        if (htsNegatives.Any())
-            recordsInserted += await BatchInsertPreventionAsync(htsNegatives, batchId);
-        if (linkages.Any())
-            recordsInserted += await BatchInsertPreventionAsync(linkages, batchId);
+        if (allRecords.Any())
+        {
+            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                allRecords, _db, _logger, batchId, existingRecords);
+            recordsInserted += inserted;
+            duplicates += dup;
+        }
+
+        stopwatch.Stop();
+        ETLHelper.LogETLSummary(_logger, "HTS Detail", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
 
         return (recordsRead, recordsInserted);
     }
@@ -234,9 +242,9 @@ public class HTSETLService : IHTSETLService
         var result = new Dictionary<string, int>();
         
         var query = @"
-            SELECT FacilityCode, Region 
-            FROM [cmis_dev].dbo.Facility 
-            WHERE Region IS NOT NULL";
+            SELECT DISTINCT FacilityCode, Region 
+            FROM [All_Dataset].[dbo].[aPrepDetail] 
+            WHERE FacilityCode IS NOT NULL AND Region IS NOT NULL";
 
         using var connection = new SqlConnection(_sourceConnectionString);
         using var command = new SqlCommand(query, connection);
@@ -244,18 +252,26 @@ public class HTSETLService : IHTSETLService
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
         
+        var regionMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Hhohho", 1 },
+            { "Manzini", 2 },
+            { "Shiselweni", 3 },
+            { "Lubombo", 4 }
+        };
+        
         while (await reader.ReadAsync())
         {
             var facilityCode = reader.GetString(0);
-            var regionValue = reader.GetByte(1);
+            var regionName = reader.GetString(1);
             
-            // Region mapping: 1=Hhohho, 2=Manzini, 3=Shiselweni, 4=Lubombo
-            if (regionValue >= 1 && regionValue <= 4)
+            if (regionMap.TryGetValue(regionName, out var regionId))
             {
-                result[facilityCode] = regionValue;
+                result[facilityCode] = regionId;
             }
         }
 
+        _logger.LogInformation("Found {Count} facility-region mappings", result.Count);
         return result;
     }
 
@@ -273,6 +289,6 @@ public class HTSETLService : IHTSETLService
         
         await connection.OpenAsync();
         var result = await command.ExecuteScalarAsync();
-        return result == null ? 0 : (int)result;
+        return result != null ? Convert.ToInt32(result) : 0;
     }
 }

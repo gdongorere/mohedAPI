@@ -178,3 +178,4 @@
 /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/obj/Debug/net9.0/Eswatini.Health.Api.pdb
 /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/obj/Debug/net9.0/Eswatini.Health.Api.genruntimeconfig.cache
 /run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/obj/Debug/net9.0/ref/Eswatini.Health.Api.dll
+/run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/obj/Debug/net9.0/Eswatini.Health.Api.sourcelink.json

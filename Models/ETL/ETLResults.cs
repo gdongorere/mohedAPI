@@ -19,7 +19,7 @@ public class ETLJobStatusDto
     public string JobName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime? LastRunTime { get; set; }
-    public string? LastBatchId { get; set; }
+    public string LastBatchId { get; set; } = string.Empty;  // Changed from string? to string with default
     public int? RecordsProcessed { get; set; }
     public string? ErrorMessage { get; set; }
 }
@@ -44,7 +44,7 @@ public class LastRunInfoDto
     public string SourceTable { get; set; } = string.Empty;
     public string TargetTable { get; set; } = string.Empty;
     public DateTime? LastRunTime { get; set; }
-    public string LastBatchId { get; set; } = string.Empty;
+    public string LastBatchId { get; set; } = string.Empty;  // Changed from string? to string with default
     public string Status { get; set; } = string.Empty;
     public int RecordCount { get; set; }
 }

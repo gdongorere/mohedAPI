@@ -36,16 +36,21 @@ public class PrEPETLService : IPrEPETLService
         };
 
         var batchId = $"PREP_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
-            _logger.LogInformation("Starting PrEP ETL with batch {BatchId}", batchId);
+            _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
+            
+            // Load existing records for deduplication (last 90 days to catch updates)
+            var existingRecords = await ETLHelper.LoadExistingRecordsAsync<IndicatorValuePrevention>(_db, DateTime.UtcNow.AddDays(-90));
+            _logger.LogInformation("📊 Loaded {Count:N0} existing records for deduplication", existingRecords.Count);
 
             // Process LineListingsPrep (primary source)
-            var (prepRecordsRead, prepRecordsInserted) = await ProcessLineListingsPrepAsync(batchId);
+            var (prepRecordsRead, prepRecordsInserted) = await ProcessLineListingsPrepAsync(batchId, existingRecords);
             
-            // Process aPrepDetail (secondary source, avoiding duplicates)
-            var (detailRecordsRead, detailRecordsInserted) = await ProcessAPrepDetailAsync(batchId);
+            // Process aPrepDetail (secondary source)
+            var (detailRecordsRead, detailRecordsInserted) = await ProcessAPrepDetailAsync(batchId, existingRecords);
 
             result.Success = true;
             result.BatchId = batchId;
@@ -53,23 +58,37 @@ public class PrEPETLService : IPrEPETLService
             result.RecordsInserted = prepRecordsInserted + detailRecordsInserted;
             result.EndTime = DateTime.UtcNow;
 
-            _logger.LogInformation("PrEP ETL completed: {RecordsInserted} records inserted", result.RecordsInserted);
+            totalStopwatch.Stop();
+            
+            _logger.LogInformation("");
+            _logger.LogInformation("═══════════════════════════════════════════════════════════");
+            _logger.LogInformation("📊 PrEP ETL FINAL SUMMARY");
+            _logger.LogInformation("═══════════════════════════════════════════════════════════");
+            _logger.LogInformation("  Total Records Read:    {TotalRead,10:N0}", result.RecordsRead);
+            _logger.LogInformation("  Total Records Inserted: {TotalInserted,10:N0}", result.RecordsInserted);
+            _logger.LogInformation("  Batch ID:               {BatchId}", batchId);
+            _logger.LogInformation("  Time Elapsed:           {Elapsed,10:N0}ms", totalStopwatch.ElapsedMilliseconds);
+            _logger.LogInformation("═══════════════════════════════════════════════════════════");
+            _logger.LogInformation("");
         }
         catch (Exception ex)
         {
             result.Success = false;
             result.ErrorMessage = ex.Message;
             result.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "PrEP ETL failed");
+            _logger.LogError(ex, "❌ PrEP ETL failed: {Message}", ex.Message);
         }
 
         return result;
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessLineListingsPrepAsync(string batchId)
+    private async Task<(int RecordsRead, int RecordsInserted)> ProcessLineListingsPrepAsync(
+        string batchId, 
+        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
         var recordsInserted = 0;
+        var duplicates = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
 
@@ -87,7 +106,7 @@ public class PrEPETLService : IPrEPETLService
                 PrEP_InitiatedOnART,
                 CurrentPrepMethod
             FROM [All_Dataset].[dbo].[LineListingsPrep]
-            WHERE VisitDate >= DATEADD(day, -7, GETDATE())
+            WHERE VisitDate IS NOT NULL
             ORDER BY VisitDate";
 
         using var connection = new SqlConnection(_sourceConnectionString);
@@ -96,18 +115,24 @@ public class PrEPETLService : IPrEPETLService
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
 
-        var initiations = new List<IndicatorValuePrevention>();
-        var tested = new List<IndicatorValuePrevention>();
-        var positives = new List<IndicatorValuePrevention>();
-        var negatives = new List<IndicatorValuePrevention>();
-        var seroconversions = new List<IndicatorValuePrevention>();
+        var allRecords = new List<IndicatorValuePrevention>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
             recordsRead++;
             
-            var facilityCode = reader.GetString(0);
-            var visitDate = reader.GetDateTime(1);
+            if (recordsRead % 1000 == 0)
+                _logger.LogInformation("Processed {Count:N0} LineListingsPrep records", recordsRead);
+
+            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
+            if (string.IsNullOrEmpty(facilityCode))
+                continue;
+
+            var visitDate = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1);
+            if (!visitDate.HasValue)
+                continue;
+
             var ageGroup = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2);
             var sexName = reader.IsDBNull(3) ? "Other" : reader.GetString(3);
             var populationType = reader.IsDBNull(4) ? null : reader.GetString(4);
@@ -122,102 +147,137 @@ public class PrEPETLService : IPrEPETLService
                 _ => "Other"
             };
 
+            var now = DateTime.UtcNow;
+
             // PrEP Initiations
             if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
             {
-                initiations.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_NEW",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // PrEP Tested for HIV
             if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
             {
-                tested.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_TESTED",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // PrEP Tested Negative
             if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
             {
-                negatives.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_NEG",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
             // PrEP Tested Positive (Seroconversion)
             if (!reader.IsDBNull(8) && reader.GetInt32(8) == 1)
             {
-                positives.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_POS",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
 
-                // Also count as seroconversion
-                seroconversions.Add(new IndicatorValuePrevention
+                allRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_SEROCONVERSION",
                     RegionId = regionId,
-                    VisitDate = visitDate,
+                    VisitDate = visitDate.Value,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
                     Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
 
-            // Batch inserts
-            recordsInserted += await BatchInsertIfNeededAsync(initiations, tested, negatives, positives, seroconversions, batchId);
+            // PrEP Initiated on ART (Linkage)
+            if (!reader.IsDBNull(9) && reader.GetInt32(9) == 1)
+            {
+                allRecords.Add(new IndicatorValuePrevention
+                {
+                    Indicator = "PREP_LINKAGE_ART",
+                    RegionId = regionId,
+                    VisitDate = visitDate.Value,
+                    AgeGroup = ageGroup,
+                    Sex = sex,
+                    PopulationType = populationType,
+                    Value = 1,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+
+            if (allRecords.Count >= _batchSize)
+            {
+                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                    allRecords, _db, _logger, batchId, existingRecords);
+                recordsInserted += inserted;
+                duplicates += dup;
+                allRecords.Clear();
+            }
         }
 
-        // Insert remaining
-        recordsInserted += await BatchInsertAllAsync(initiations, tested, negatives, positives, seroconversions, batchId);
+        if (allRecords.Any())
+        {
+            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                allRecords, _db, _logger, batchId, existingRecords);
+            recordsInserted += inserted;
+            duplicates += dup;
+        }
+
+        stopwatch.Stop();
+        ETLHelper.LogETLSummary(_logger, "LineListingsPrep", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
 
         return (recordsRead, recordsInserted);
     }
 
-    private async Task<(int RecordsRead, int RecordsInserted)> ProcessAPrepDetailAsync(string batchId)
+    private async Task<(int RecordsRead, int RecordsInserted)> ProcessAPrepDetailAsync(
+        string batchId, 
+        Dictionary<string, (DateTime UpdatedAt, int Id)> existingRecords)
     {
         var recordsRead = 0;
         var recordsInserted = 0;
+        var duplicates = 0;
 
         var facilityRegions = await GetFacilityRegionsAsync();
 
@@ -228,11 +288,10 @@ public class PrEPETLService : IPrEPETLService
                 AgeGroup,
                 Sex,
                 PopulationType,
-                CurrentPrepMethod,
                 Seroconverted,
                 InitiatedOnART
             FROM [All_Dataset].[dbo].[aPrepDetail]
-            WHERE VisitDate >= DATEADD(day, -7, GETDATE())
+            WHERE VisitDate IS NOT NULL
             ORDER BY VisitDate";
 
         using var connection = new SqlConnection(_sourceConnectionString);
@@ -241,16 +300,35 @@ public class PrEPETLService : IPrEPETLService
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
 
-        var records = new List<IndicatorValuePrevention>();
+        var allRecords = new List<IndicatorValuePrevention>();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
             recordsRead++;
             
-            var facilityCode = reader.GetString(0);
-            var visitDate = reader.GetDateTime(1);
+            if (recordsRead % 10000 == 0)
+                _logger.LogInformation("Processed {Count:N0} aPrepDetail records", recordsRead);
+
+            // Handle NULL values safely
+            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
+            if (string.IsNullOrEmpty(facilityCode))
+                continue;
+
+            var visitDate = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1);
+            if (!visitDate.HasValue)
+                continue;
+
             var ageGroup = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2);
-            var sexValue = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+            
+            // Handle Sex column correctly - it's TINYINT in database
+            int? sexValue = null;
+            if (!reader.IsDBNull(3))
+            {
+                // SQL Server TINYINT maps to byte in C#
+                sexValue = reader.GetByte(3);
+            }
+            
             var populationType = reader.IsDBNull(4) ? null : reader.GetString(4);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
@@ -263,97 +341,72 @@ public class PrEPETLService : IPrEPETLService
                 _ => "Other"
             };
 
-            // Check for seroconversion
-            if (!reader.IsDBNull(6) && reader.GetBoolean(6))
+            var now = DateTime.UtcNow;
+
+            // Handle Seroconverted column correctly - it's nvarchar
+            if (!reader.IsDBNull(5))
             {
-                records.Add(new IndicatorValuePrevention
+                var seroconverted = reader.GetString(5).Trim().ToLower();
+                if (seroconverted == "1" || seroconverted == "true" || seroconverted == "yes")
                 {
-                    Indicator = "PREP_SEROCONVERSION",
-                    RegionId = regionId,
-                    VisitDate = visitDate,
-                    AgeGroup = ageGroup,
-                    Sex = sex,
-                    PopulationType = populationType,
-                    Value = 1,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
+                    allRecords.Add(new IndicatorValuePrevention
+                    {
+                        Indicator = "PREP_SEROCONVERSION",
+                        RegionId = regionId,
+                        VisitDate = visitDate.Value,
+                        AgeGroup = ageGroup,
+                        Sex = sex,
+                        PopulationType = populationType,
+                        Value = 1,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
             }
 
-            if (records.Count >= _batchSize)
+            // Handle InitiatedOnART column correctly - it's nvarchar
+            if (!reader.IsDBNull(6))
             {
-                recordsInserted += await BatchInsertPreventionAsync(records, batchId);
-                records.Clear();
+                var initiatedOnArt = reader.GetString(6).Trim().ToLower();
+                if (initiatedOnArt == "1" || initiatedOnArt == "true" || initiatedOnArt == "yes")
+                {
+                    allRecords.Add(new IndicatorValuePrevention
+                    {
+                        Indicator = "PREP_LINKAGE_ART",
+                        RegionId = regionId,
+                        VisitDate = visitDate.Value,
+                        AgeGroup = ageGroup,
+                        Sex = sex,
+                        PopulationType = populationType,
+                        Value = 1,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+            }
+
+            if (allRecords.Count >= _batchSize)
+            {
+                var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                    allRecords, _db, _logger, batchId, existingRecords);
+                recordsInserted += inserted;
+                duplicates += dup;
+                allRecords.Clear();
             }
         }
 
-        if (records.Any())
-            recordsInserted += await BatchInsertPreventionAsync(records, batchId);
+        if (allRecords.Any())
+        {
+            var (inserted, dup, _) = await ETLHelper.BatchInsertWithDeduplicationAsync(
+                allRecords, _db, _logger, batchId, existingRecords);
+            recordsInserted += inserted;
+            duplicates += dup;
+        }
+
+        stopwatch.Stop();
+        ETLHelper.LogETLSummary(_logger, "aPrepDetail", recordsRead, recordsInserted, duplicates, stopwatch.ElapsedMilliseconds);
 
         return (recordsRead, recordsInserted);
-    }
-
-    private async Task<int> BatchInsertIfNeededAsync(
-        List<IndicatorValuePrevention> initiations,
-        List<IndicatorValuePrevention> tested,
-        List<IndicatorValuePrevention> negatives,
-        List<IndicatorValuePrevention> positives,
-        List<IndicatorValuePrevention> seroconversions,
-        string batchId)
-    {
-        var inserted = 0;
-        
-        if (initiations.Count >= _batchSize)
-        {
-            inserted += await BatchInsertPreventionAsync(initiations, batchId);
-            initiations.Clear();
-        }
-        if (tested.Count >= _batchSize)
-        {
-            inserted += await BatchInsertPreventionAsync(tested, batchId);
-            tested.Clear();
-        }
-        if (negatives.Count >= _batchSize)
-        {
-            inserted += await BatchInsertPreventionAsync(negatives, batchId);
-            negatives.Clear();
-        }
-        if (positives.Count >= _batchSize)
-        {
-            inserted += await BatchInsertPreventionAsync(positives, batchId);
-            positives.Clear();
-        }
-        if (seroconversions.Count >= _batchSize)
-        {
-            inserted += await BatchInsertPreventionAsync(seroconversions, batchId);
-            seroconversions.Clear();
-        }
-
-        return inserted;
-    }
-
-    private async Task<int> BatchInsertAllAsync(
-        List<IndicatorValuePrevention> initiations,
-        List<IndicatorValuePrevention> tested,
-        List<IndicatorValuePrevention> negatives,
-        List<IndicatorValuePrevention> positives,
-        List<IndicatorValuePrevention> seroconversions,
-        string batchId)
-    {
-        var inserted = 0;
-        
-        if (initiations.Any())
-            inserted += await BatchInsertPreventionAsync(initiations, batchId);
-        if (tested.Any())
-            inserted += await BatchInsertPreventionAsync(tested, batchId);
-        if (negatives.Any())
-            inserted += await BatchInsertPreventionAsync(negatives, batchId);
-        if (positives.Any())
-            inserted += await BatchInsertPreventionAsync(positives, batchId);
-        if (seroconversions.Any())
-            inserted += await BatchInsertPreventionAsync(seroconversions, batchId);
-
-        return inserted;
     }
 
     private async Task<int> BatchInsertPreventionAsync(List<IndicatorValuePrevention> records, string batchId)
@@ -367,9 +420,9 @@ public class PrEPETLService : IPrEPETLService
         var result = new Dictionary<string, int>();
         
         var query = @"
-            SELECT FacilityCode, Region 
-            FROM [cmis_dev].dbo.Facility 
-            WHERE Region IS NOT NULL";
+            SELECT DISTINCT FacilityCode, Region 
+            FROM [All_Dataset].[dbo].[aPrepDetail] 
+            WHERE FacilityCode IS NOT NULL AND Region IS NOT NULL";
 
         using var connection = new SqlConnection(_sourceConnectionString);
         using var command = new SqlCommand(query, connection);
@@ -377,17 +430,26 @@ public class PrEPETLService : IPrEPETLService
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
         
+        var regionMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Hhohho", 1 },
+            { "Manzini", 2 },
+            { "Shiselweni", 3 },
+            { "Lubombo", 4 }
+        };
+        
         while (await reader.ReadAsync())
         {
             var facilityCode = reader.GetString(0);
-            var regionValue = reader.GetByte(1);
+            var regionName = reader.GetString(1);
             
-            if (regionValue >= 1 && regionValue <= 4)
+            if (regionMap.TryGetValue(regionName, out var regionId))
             {
-                result[facilityCode] = regionValue;
+                result[facilityCode] = regionId;
             }
         }
 
+        _logger.LogInformation("Found {Count} facility-region mappings", result.Count);
         return result;
     }
 
@@ -405,6 +467,6 @@ public class PrEPETLService : IPrEPETLService
         
         await connection.OpenAsync();
         var result = await command.ExecuteScalarAsync();
-        return result != null ? (int)result : 0;
+        return result != null ? Convert.ToInt32(result) : 0;
     }
 }
