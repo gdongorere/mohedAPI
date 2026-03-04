@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Eswatini.Health.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9cbb1eaa7f1f15c4deb7f84972c79a82eddef090")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1062164b840eb21d47fa4553f0241ca7fa757443")]
 [assembly: System.Reflection.AssemblyProductAttribute("Eswatini.Health.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Eswatini.Health.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
