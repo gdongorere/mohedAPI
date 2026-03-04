@@ -21,7 +21,23 @@ public static class ETLHelper
     }
 
     /// <summary>
-    /// Batch inserts/updates with deduplication - ALWAYS processes ALL data
+    /// Creates a unique key from an IndicatorValueBase record
+    /// </summary>
+    public static string CreateUniqueKey(IndicatorValueBase record)
+    {
+        return CreateUniqueKey(
+            record.Indicator,
+            record.RegionId,
+            record.VisitDate,
+            record.AgeGroup,
+            record.Sex,
+            record.PopulationType,
+            record is IndicatorValueTB tb ? tb.TBType : null
+        );
+    }
+
+    /// <summary>
+    /// Batch inserts/updates with OPTIMIZED batch updates
     /// </summary>
     public static async Task<(int Inserted, int Updated, int Skipped)> ProcessRecordsAsync<T>(
         List<T> records,
@@ -32,28 +48,21 @@ public static class ETLHelper
     {
         if (!records.Any()) return (0, 0, 0);
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var newRecords = new List<T>();
-        var recordsToUpdate = new List<(T Record, int Id)>();
+        var updatesDict = new Dictionary<int, T>(); // Id -> Updated record
         var skippedRecords = 0;
 
         foreach (var record in records)
         {
-            var key = CreateUniqueKey(
-                record.Indicator,
-                record.RegionId,
-                record.VisitDate,
-                record.AgeGroup,
-                record.Sex,
-                record.PopulationType,
-                record is IndicatorValueTB tb ? tb.TBType : null
-            );
+            var key = CreateUniqueKey(record);
 
             if (existingRecords.TryGetValue(key, out var existing))
             {
-                // Compare all relevant fields to see if data changed
-                if (HasRecordChanged(record, existing.Id, db))
+                // If this record is newer, UPDATE it
+                if (record.UpdatedAt > existing.UpdatedAt)
                 {
-                    recordsToUpdate.Add((record, existing.Id));
+                    updatesDict[existing.Id] = record;
                     // Update the dictionary with new timestamp
                     existingRecords[key] = (record.UpdatedAt, existing.Id);
                 }
@@ -71,7 +80,7 @@ public static class ETLHelper
         var inserted = 0;
         var updated = 0;
 
-        // Insert new records
+        // FAST PATH 1: Batch insert new records
         if (newRecords.Any())
         {
             await db.AddRangeAsync(newRecords);
@@ -80,16 +89,7 @@ public static class ETLHelper
             // Add newly inserted records to existing records dictionary
             foreach (var record in newRecords)
             {
-                var key = CreateUniqueKey(
-                    record.Indicator,
-                    record.RegionId,
-                    record.VisitDate,
-                    record.AgeGroup,
-                    record.Sex,
-                    record.PopulationType,
-                    record is IndicatorValueTB tb ? tb.TBType : null
-                );
-                
+                var key = CreateUniqueKey(record);
                 if (!existingRecords.ContainsKey(key))
                 {
                     existingRecords[key] = (record.UpdatedAt, 0);
@@ -97,62 +97,85 @@ public static class ETLHelper
             }
         }
 
-        // Update existing records
-        foreach (var (record, id) in recordsToUpdate)
+        // FAST PATH 2: Batch update using single SQL command
+        if (updatesDict.Any())
         {
-            var existing = await db.Set<T>().FindAsync(id);
-            if (existing != null)
-            {
-                // Update all fields that could change
-                existing.Value = record.Value;
-                existing.UpdatedAt = record.UpdatedAt;
-                existing.PopulationType = record.PopulationType;
-                
-                // For TB records
-                if (existing is IndicatorValueTB existingTB && record is IndicatorValueTB newTB)
-                {
-                    existingTB.TBType = newTB.TBType;
-                }
-                
-                updated++;
-            }
-        }
-        
-        if (updated > 0)
-        {
-            await db.SaveChangesAsync();
+            updated = await BatchUpdateRecordsAsync(db, updatesDict, logger);
         }
 
-        logger.LogInformation("Batch {BatchId}: {Inserted} inserted, {Updated} updated, {Skipped} unchanged", 
-            batchId, inserted, updated, skippedRecords);
+        stopwatch.Stop();
+        
+        if (inserted > 0 || updated > 0)
+        {
+            logger.LogDebug("Batch {BatchId}: {Inserted} inserted, {Updated} updated, {Skipped} unchanged in {Elapsed}ms", 
+                batchId, inserted, updated, skippedRecords, stopwatch.ElapsedMilliseconds);
+        }
 
         return (inserted, updated, skippedRecords);
     }
 
     /// <summary>
-    /// Check if a record has changed compared to what's in the database
+    /// ULTRA-FAST batch update using single SQL command
     /// </summary>
-    private static bool HasRecordChanged<T>(T newRecord, int existingId, StagingDbContext db) where T : IndicatorValueBase
+    private static async Task<int> BatchUpdateRecordsAsync<T>(
+        StagingDbContext db,
+        Dictionary<int, T> updatesDict,
+        ILogger logger) where T : IndicatorValueBase
     {
-        var existing = db.Set<T>().Local.FirstOrDefault(e => e.Id == existingId);
-        if (existing == null)
-        {
-            // If not in local cache, we'll assume it might have changed
-            // In a production system, you might want to query for it
-            return true;
-        }
+        if (!updatesDict.Any()) return 0;
 
-        // Compare fields that matter
-        if (existing.Value != newRecord.Value) return true;
-        if (existing.PopulationType != newRecord.PopulationType) return true;
+        var tableName = GetTableName<T>();
+        var ids = updatesDict.Keys.ToList();
         
-        // For TB records
-        if (existing is IndicatorValueTB existingTB && newRecord is IndicatorValueTB newTB)
+        logger.LogDebug("Batch updating {Count} records in {TableName} using single SQL command", 
+            updatesDict.Count, tableName);
+
+        // Build CASE statements for each field
+        var valueCases = new StringBuilder();
+        var updatedAtCases = new StringBuilder();
+        var populationTypeCases = new StringBuilder();
+        
+        foreach (var kvp in updatesDict)
         {
-            if (existingTB.TBType != newTB.TBType) return true;
+            var record = kvp.Value;
+            valueCases.AppendLine($"        WHEN {kvp.Key} THEN {record.Value}");
+            updatedAtCases.AppendLine($"        WHEN {kvp.Key} THEN '{record.UpdatedAt:yyyy-MM-dd HH:mm:ss}'");
+            
+            var popType = record.PopulationType?.Replace("'", "''") ?? "NULL";
+            populationTypeCases.AppendLine($"        WHEN {kvp.Key} THEN '{popType}'");
         }
 
-        return false;
+        var sql = $@"
+            UPDATE [{tableName}] SET
+                [Value] = CASE [Id]
+                    {valueCases}
+                    ELSE [Value]
+                END,
+                [UpdatedAt] = CASE [Id]
+                    {updatedAtCases}
+                    ELSE [UpdatedAt]
+                END,
+                [PopulationType] = CASE [Id]
+                    {populationTypeCases}
+                    ELSE [PopulationType]
+                END
+            WHERE [Id] IN ({string.Join(",", ids)})";
+
+        return await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    /// <summary>
+    /// Get table name for entity type
+    /// </summary>
+    private static string GetTableName<T>() where T : IndicatorValueBase
+    {
+        return typeof(T) switch
+        {
+            var t when t == typeof(IndicatorValuePrevention) => "IndicatorValues_Prevention",
+            var t when t == typeof(IndicatorValueHIV) => "IndicatorValues_HIV",
+            var t when t == typeof(IndicatorValueTB) => "IndicatorValues_TB",
+            _ => throw new ArgumentException($"Unknown type: {typeof(T).Name}")
+        };
     }
 
     /// <summary>
@@ -169,15 +192,7 @@ public static class ETLHelper
         var results = await db.Set<T>()
             .Select(x => new
             {
-                Key = CreateUniqueKey(
-                    x.Indicator,
-                    x.RegionId,
-                    x.VisitDate,
-                    x.AgeGroup,
-                    x.Sex,
-                    x.PopulationType,
-                    (x as IndicatorValueTB) != null ? (x as IndicatorValueTB).TBType : null
-                ),
+                Key = CreateUniqueKey(x),
                 x.UpdatedAt,
                 x.Id
             })
@@ -206,7 +221,7 @@ public static class ETLHelper
 
         stopwatch.Stop();
         
-        logger.LogInformation("Loaded {Count} unique records from {TableName} in {Elapsed}ms (found {Duplicates} duplicates)", 
+        logger.LogInformation("Loaded {Count:N0} unique records from {TableName} in {Elapsed}ms (found {Duplicates:N0} duplicates)", 
             dict.Count, typeof(T).Name, stopwatch.ElapsedMilliseconds, duplicates);
 
         return dict;

@@ -216,6 +216,7 @@ public class ARTETLService : IARTETLService
             }
         }
 
+        // Process remaining records
         if (allRecords.Any())
         {
             var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(

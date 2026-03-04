@@ -21,6 +21,7 @@ public class ScheduledETLService : BackgroundService
         _logger.LogInformation("=".PadRight(70, '='));
         _logger.LogInformation("🕛 SCHEDULED ETL SERVICE STARTED - Will run daily at midnight");
         _logger.LogInformation("📊 Mode: PROCESSING ALL HISTORICAL DATA (inserts + updates)");
+        _logger.LogInformation("⚡ Performance: OPTIMIZED batch updates");
         _logger.LogInformation("=".PadRight(70, '='));
 
         while (!stoppingToken.IsCancellationRequested)

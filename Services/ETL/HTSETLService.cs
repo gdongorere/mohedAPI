@@ -220,6 +220,7 @@ public class HTSETLService : IHTSETLService
             }
         }
 
+        // Process remaining records
         if (allRecords.Any())
         {
             var (ins, upd, skp) = await ETLHelper.ProcessRecordsAsync(
