@@ -48,6 +48,8 @@ services.AddScoped<IPrEPETLService, PrEPETLService>();
 services.AddScoped<IARTETLService, ARTETLService>();
 services.AddScoped<IETLService, ETLService>();
 
+services.AddSingleton<IFacilityRegionService, FacilityRegionService>();
+
         return services;
     }
 

@@ -60,8 +60,8 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
                 })
                 .ToListAsync();
 
-            // Aggregate by period if needed
-            if (request.PeriodType != "daily" && request.PeriodType != null)
+            // Aggregate by period if needed (do this in memory after EF query)
+            if (request.PeriodType != "daily" && request.PeriodType != null && results.Any())
             {
                 results = results
                     .GroupBy(x => new { x.Indicator, x.RegionId, x.Period, x.AgeGroup, x.Sex, x.PopulationType })
@@ -70,7 +70,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
                         Indicator = g.Key.Indicator,
                         RegionId = g.Key.RegionId,
                         RegionName = GetRegionName(g.Key.RegionId),
-                        VisitDate = g.First().VisitDate,
+                        VisitDate = g.Min(x => x.VisitDate),
                         Period = g.Key.Period,
                         AgeGroup = g.Key.AgeGroup,
                         Sex = g.Key.Sex,
@@ -232,7 +232,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         }
     }
 
-    private string GetRegionName(int regionId)
+    private static string GetRegionName(int regionId)
     {
         return regionId switch
         {

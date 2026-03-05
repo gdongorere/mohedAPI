@@ -60,8 +60,8 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
                 })
                 .ToListAsync();
 
-            // Aggregate by period if needed
-            if (request.PeriodType != "daily" && request.PeriodType != null)
+            // Aggregate by period if needed (do this in memory after EF query)
+            if (request.PeriodType != "daily" && request.PeriodType != null && results.Any())
             {
                 results = results
                     .GroupBy(x => new { x.Indicator, x.RegionId, x.Period, x.AgeGroup, x.Sex, x.PopulationType })
@@ -70,7 +70,7 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
                         Indicator = g.Key.Indicator,
                         RegionId = g.Key.RegionId,
                         RegionName = GetRegionName(g.Key.RegionId),
-                        VisitDate = g.First().VisitDate,
+                        VisitDate = g.Min(x => x.VisitDate),
                         Period = g.Key.Period,
                         AgeGroup = g.Key.AgeGroup,
                         Sex = g.Key.Sex,
@@ -143,13 +143,13 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
             if (regionId.HasValue)
                 query = query.Where(x => x.RegionId == regionId.Value);
 
-            // Get the most recent value for each region before or on the date
-            var latestValues = await query
-                .GroupBy(x => new { x.RegionId, x.AgeGroup, x.Sex, x.PopulationType })
+            // Get all records and do grouping in memory to avoid EF translation issues
+            var records = await query.ToListAsync();
+            
+            return records
+                .GroupBy(x => new { x.RegionId, x.AgeGroup, x.Sex })
                 .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
-                .ToListAsync();
-
-            return latestValues.Sum(x => x?.Value ?? 0);
+                .Sum(x => x?.Value ?? 0);
         }
         catch (Exception ex)
         {
@@ -189,17 +189,21 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
             if (regionId.HasValue)
                 query = query.Where(x => x.RegionId == regionId.Value);
 
-            var tested = await query
-                .Where(x => x.Indicator == "TX_VL_TESTED")
-                .GroupBy(x => x.RegionId)
+            var records = await query.ToListAsync();
+            
+            // Get most recent record for each dimension
+            var latestRecords = records
+                .GroupBy(x => new { x.Indicator, x.RegionId, x.AgeGroup, x.Sex })
                 .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
-                .SumAsync(x => x != null ? x.Value : 0);
+                .ToList();
 
-            var suppressed = await query
-                .Where(x => x.Indicator == "TX_VL_SUPPRESSED")
-                .GroupBy(x => x.RegionId)
-                .Select(g => g.OrderByDescending(x => x.VisitDate).FirstOrDefault())
-                .SumAsync(x => x != null ? x.Value : 0);
+            var tested = latestRecords
+                .Where(x => x?.Indicator == "TX_VL_TESTED")
+                .Sum(x => x?.Value ?? 0);
+                
+            var suppressed = latestRecords
+                .Where(x => x?.Indicator == "TX_VL_SUPPRESSED")
+                .Sum(x => x?.Value ?? 0);
 
             return (tested, suppressed);
         }
@@ -220,12 +224,16 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
             if (regionId.HasValue)
                 query = query.Where(x => x.RegionId == regionId.Value);
 
-            var results = await query
+            var records = await query.ToListAsync();
+            
+            return records
                 .GroupBy(x => x.Sex)
-                .Select(g => new { Sex = g.Key, Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()!.Value })
-                .ToDictionaryAsync(x => x.Sex, x => x.Value);
-
-            return results;
+                .Select(g => new 
+                { 
+                    Sex = g.Key, 
+                    Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()?.Value ?? 0 
+                })
+                .ToDictionary(x => x.Sex, x => x.Value);
         }
         catch (Exception ex)
         {
@@ -244,12 +252,16 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
             if (regionId.HasValue)
                 query = query.Where(x => x.RegionId == regionId.Value);
 
-            var results = await query
+            var records = await query.ToListAsync();
+            
+            return records
                 .GroupBy(x => x.AgeGroup)
-                .Select(g => new { AgeGroup = g.Key, Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()!.Value })
-                .ToDictionaryAsync(x => x.AgeGroup, x => x.Value);
-
-            return results;
+                .Select(g => new 
+                { 
+                    AgeGroup = g.Key, 
+                    Value = g.OrderByDescending(x => x.VisitDate).FirstOrDefault()?.Value ?? 0 
+                })
+                .ToDictionary(x => x.AgeGroup, x => x.Value);
         }
         catch (Exception ex)
         {
@@ -258,7 +270,7 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
         }
     }
 
-    private string GetRegionName(int regionId)
+    private static string GetRegionName(int regionId)
     {
         return regionId switch
         {

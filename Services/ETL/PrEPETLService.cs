@@ -11,17 +11,20 @@ public class PrEPETLService : IPrEPETLService
     private readonly StagingDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PrEPETLService> _logger;
+    private readonly IFacilityRegionService _facilityRegionService;
     private readonly string _sourceConnectionString;
     private readonly int _batchSize;
 
     public PrEPETLService(
         StagingDbContext db,
         IConfiguration configuration,
-        ILogger<PrEPETLService> logger)
+        ILogger<PrEPETLService> logger,
+        IFacilityRegionService facilityRegionService)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _facilityRegionService = facilityRegionService;
         _sourceConnectionString = configuration.GetConnectionString("SourceConnection") 
             ?? throw new InvalidOperationException("SourceConnection not configured");
         _batchSize = configuration.GetValue<int>("ETL:BatchSize", 10000);
@@ -42,13 +45,20 @@ public class PrEPETLService : IPrEPETLService
         {
             _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
             
-            // Load ALL existing aggregated records
+            // Clear existing data if this is a fresh run
+            if (triggeredBy == "system" && await ShouldClearExistingData())
+            {
+                _logger.LogInformation("Clearing existing PrEP data for fresh ETL");
+                await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_Prevention WHERE Indicator LIKE 'PREP_%'");
+            }
+            
+            // Load existing records for aggregation
             var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
 
-            // Process LineListingsPrep (primary source)
+            // Process LineListingsPrep (primary source for initiations)
             var (prepRecordsRead, prepInserted, prepUpdated, prepSkipped) = await ProcessLineListingsPrepAsync(batchId, existingRecords);
             
-            // Process aPrepDetail (secondary source)
+            // Process aPrepDetail (secondary source for seroconversions only)
             var (detailRecordsRead, detailInserted, detailUpdated, detailSkipped) = await ProcessAPrepDetailAsync(batchId, existingRecords);
 
             result.Success = true;
@@ -84,6 +94,14 @@ public class PrEPETLService : IPrEPETLService
         return result;
     }
 
+    private async Task<bool> ShouldClearExistingData()
+    {
+        var count = await _db.IndicatorValues_Prevention
+            .Where(x => x.Indicator.StartsWith("PREP_"))
+            .CountAsync();
+        return count > 0;
+    }
+
     private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessLineListingsPrepAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
@@ -94,7 +112,8 @@ public class PrEPETLService : IPrEPETLService
         var updated = 0;
         var skipped = 0;
 
-        var facilityRegions = await GetFacilityRegionsAsync();
+        var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
+        var unmappedFacilities = new HashSet<string>();
 
         var query = @"
             SELECT 
@@ -103,12 +122,11 @@ public class PrEPETLService : IPrEPETLService
                 AgeGroup,
                 SexName,
                 PopulationType,
-                PrEP_Initiation,
-                PrEP_TestedForHIV,
-                PrEP_TestedNegative,
-                PrEP_TestedPositive,
-                PrEP_InitiatedOnART,
-                CurrentPrepMethod
+                ISNULL(PrEP_Initiation, 0) as PrEP_Initiation,
+                ISNULL(PrEP_TestedForHIV, 0) as PrEP_TestedForHIV,
+                ISNULL(PrEP_TestedNegative, 0) as PrEP_TestedNegative,
+                ISNULL(PrEP_TestedPositive, 0) as PrEP_TestedPositive,
+                ISNULL(PrEP_InitiatedOnART, 0) as PrEP_InitiatedOnART
             FROM [All_Dataset].[dbo].[LineListingsPrep]
             WHERE VisitDate IS NOT NULL
             ORDER BY VisitDate";
@@ -141,7 +159,10 @@ public class PrEPETLService : IPrEPETLService
             var populationType = reader.IsDBNull(4) ? null : reader.GetString(4);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
+            {
+                unmappedFacilities.Add(facilityCode);
                 continue;
+            }
 
             var sex = sexName.ToUpper() switch
             {
@@ -153,99 +174,106 @@ public class PrEPETLService : IPrEPETLService
             var now = DateTime.UtcNow;
 
             // PrEP Initiations (PREP_NEW)
-            if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
+            var initiationValue = reader.GetInt32(5);
+            if (initiationValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_NEW",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = initiationValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // PrEP Tested for HIV (PREP_TESTED)
-            if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
+            var testedValue = reader.GetInt32(6);
+            if (testedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_TESTED",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = testedValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // PrEP Tested Negative (PREP_NEG)
-            if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
+            var negativeValue = reader.GetInt32(7);
+            if (negativeValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_NEG",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = negativeValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // PrEP Tested Positive (PREP_POS) - Seroconversion
-            if (!reader.IsDBNull(8) && reader.GetInt32(8) == 1)
+            var positiveValue = reader.GetInt32(8);
+            if (positiveValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_POS",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = positiveValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
 
-                // Also add as seroconversion
+                /*
+                // it's causing double-counting
+                // Add as seroconversion (only from LineListingsPrep)
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_SEROCONVERSION",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = positiveValue,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                });*/
             }
 
             // PrEP Initiated on ART (PREP_LINKAGE_ART)
-            if (!reader.IsDBNull(9) && reader.GetInt32(9) == 1)
+            var linkedValue = reader.GetInt32(9);
+            if (linkedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
                     Indicator = "PREP_LINKAGE_ART",
                     RegionId = regionId,
-                    VisitDate = visitDate.Value,
+                    VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = populationType,
-                    Value = 1,
+                    Value = linkedValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -263,6 +291,13 @@ public class PrEPETLService : IPrEPETLService
                 skipped += skp;
                 allRawRecords.Clear();
             }
+        }
+
+        // Log unmapped facilities
+        if (unmappedFacilities.Any())
+        {
+            _logger.LogWarning("Found {Count} unmapped facilities in LineListingsPrep: {Facilities}", 
+                unmappedFacilities.Count, string.Join(", ", unmappedFacilities.Take(20)));
         }
 
         // Process remaining records
@@ -293,7 +328,8 @@ public class PrEPETLService : IPrEPETLService
         var updated = 0;
         var skipped = 0;
 
-        var facilityRegions = await GetFacilityRegionsAsync();
+        var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
+        var unmappedFacilities = new HashSet<string>();
 
         var query = @"
             SELECT 
@@ -342,7 +378,10 @@ public class PrEPETLService : IPrEPETLService
             var populationType = reader.IsDBNull(4) ? null : reader.GetString(4);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
+            {
+                unmappedFacilities.Add(facilityCode);
                 continue;
+            }
 
             var sex = sexValue switch
             {
@@ -353,26 +392,27 @@ public class PrEPETLService : IPrEPETLService
 
             var now = DateTime.UtcNow;
 
-            // Handle Seroconverted column (PREP_SEROCONVERSION)
-            if (!reader.IsDBNull(5))
-            {
-                var seroconverted = reader.GetString(5).Trim().ToLower();
-                if (seroconverted == "1" || seroconverted == "true" || seroconverted == "yes")
-                {
-                    allRawRecords.Add(new IndicatorValuePrevention
-                    {
-                        Indicator = "PREP_SEROCONVERSION",
-                        RegionId = regionId,
-                        VisitDate = visitDate.Value,
-                        AgeGroup = ageGroup,
-                        Sex = sex,
-                        PopulationType = populationType,
-                        Value = 1,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
-            }
+            // Handle Seroconverted column - ONLY add seroconversions, not other indicators
+            // Handle Seroconverted column - ONLY add from aPrepDetail (36 records)
+if (!reader.IsDBNull(5))
+{
+    var seroconverted = reader.GetString(5).Trim().ToLower();
+    if (seroconverted == "1" || seroconverted == "true" || seroconverted == "yes")
+    {
+        allRawRecords.Add(new IndicatorValuePrevention
+        {
+            Indicator = "PREP_SEROCONVERSION",  // Only add this indicator
+            RegionId = regionId,
+            VisitDate = visitDate.Value.Date,
+            AgeGroup = ageGroup,
+            Sex = sex,
+            PopulationType = populationType,
+            Value = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+    }
+}
 
             // Handle InitiatedOnART column (PREP_LINKAGE_ART)
             if (!reader.IsDBNull(6))
@@ -384,7 +424,7 @@ public class PrEPETLService : IPrEPETLService
                     {
                         Indicator = "PREP_LINKAGE_ART",
                         RegionId = regionId,
-                        VisitDate = visitDate.Value,
+                        VisitDate = visitDate.Value.Date,
                         AgeGroup = ageGroup,
                         Sex = sex,
                         PopulationType = populationType,
@@ -409,6 +449,13 @@ public class PrEPETLService : IPrEPETLService
             }
         }
 
+        // Log unmapped facilities
+        if (unmappedFacilities.Any())
+        {
+            _logger.LogWarning("Found {Count} unmapped facilities in aPrepDetail: {Facilities}", 
+                unmappedFacilities.Count, string.Join(", ", unmappedFacilities.Take(20)));
+        }
+
         // Process remaining records
         if (allRawRecords.Any())
         {
@@ -425,44 +472,6 @@ public class PrEPETLService : IPrEPETLService
         ETLHelper.LogETLSummary(_logger, "aPrepDetail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
         return (recordsRead, inserted, updated, skipped);
-    }
-
-    private async Task<Dictionary<string, int>> GetFacilityRegionsAsync()
-    {
-        var result = new Dictionary<string, int>();
-        
-        var query = @"
-            SELECT DISTINCT FacilityCode, Region 
-            FROM [All_Dataset].[dbo].[aPrepDetail] 
-            WHERE FacilityCode IS NOT NULL AND Region IS NOT NULL";
-
-        using var connection = new SqlConnection(_sourceConnectionString);
-        using var command = new SqlCommand(query, connection);
-        
-        await connection.OpenAsync();
-        using var reader = await command.ExecuteReaderAsync();
-        
-        var regionMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Hhohho", 1 },
-            { "Manzini", 2 },
-            { "Shiselweni", 3 },
-            { "Lubombo", 4 }
-        };
-        
-        while (await reader.ReadAsync())
-        {
-            var facilityCode = reader.GetString(0);
-            var regionName = reader.GetString(1);
-            
-            if (regionMap.TryGetValue(regionName, out var regionId))
-            {
-                result[facilityCode] = regionId;
-            }
-        }
-
-        _logger.LogInformation("Found {Count} facility-region mappings", result.Count);
-        return result;
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)

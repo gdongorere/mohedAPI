@@ -17,6 +17,7 @@ public static class ETLHelper
         var normalizedPopulationType = string.IsNullOrEmpty(populationType) ? "NULL" : populationType.Trim();
         var normalizedTbType = string.IsNullOrEmpty(tbType) ? "NULL" : tbType.Trim();
         
+        // Use date only for key (not time)
         return $"{indicator}|{regionId}|{visitDate:yyyy-MM-dd}|{normalizedAgeGroup}|{normalizedSex}|{normalizedPopulationType}|{normalizedTbType}";
     }
 
@@ -50,7 +51,7 @@ public static class ETLHelper
     }
 
     /// <summary>
-    /// Batch upsert of aggregated counts
+    /// Batch upsert of aggregated counts - FIXED for proper type handling
     /// </summary>
     public static async Task<(int Inserted, int Updated, int Skipped)> UpsertAggregatedRecordsAsync<T>(
         Dictionary<string, int> aggregatedRecords,
@@ -89,20 +90,20 @@ public static class ETLHelper
             {
                 // Parse the key to create a new record
                 var parts = key.Split('|');
-                var record = new T
-                {
-                    Indicator = parts[0],
-                    RegionId = int.Parse(parts[1]),
-                    VisitDate = DateTime.Parse(parts[2]),
-                    AgeGroup = parts[3],
-                    Sex = parts[4],
-                    PopulationType = parts[5] == "NULL" ? null : parts[5],
-                    Value = newValue,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+                
+                // Create the appropriate record type based on T
+                var record = new T();
+                record.Indicator = parts[0];
+                record.RegionId = int.Parse(parts[1]);
+                record.VisitDate = DateTime.Parse(parts[2]);
+                record.AgeGroup = parts[3];
+                record.Sex = parts[4];
+                record.PopulationType = parts[5] == "NULL" ? null : parts[5];
+                record.Value = newValue;
+                record.CreatedAt = DateTime.UtcNow;
+                record.UpdatedAt = DateTime.UtcNow;
 
-                // For TB records
+                // Handle TB-specific field only if this is actually a TB record
                 if (record is IndicatorValueTB tbRecord && parts.Length > 6)
                 {
                     tbRecord.TBType = parts[6] == "NULL" ? null : parts[6];
@@ -125,10 +126,10 @@ public static class ETLHelper
                 batchId, inserted);
         }
 
-        // Update existing records
+        // Update existing records in chunks
         if (updatesDict.Any())
         {
-            updated = await BatchUpdateValuesAsync(db, updatesDict, logger, typeof(T).Name);
+            updated = await BatchUpdateValuesAsync(db, updatesDict, logger, GetTableName<T>());
             logger.LogDebug("Batch {BatchId}: Updated {Count} records with new values", 
                 batchId, updated);
         }
@@ -142,7 +143,22 @@ public static class ETLHelper
     }
 
     /// <summary>
-    /// Batch update just the Value column
+    /// Get table name for entity type
+    /// </summary>
+    private static string GetTableName<T>() where T : IndicatorValueBase
+    {
+        if (typeof(T) == typeof(IndicatorValuePrevention))
+            return "IndicatorValues_Prevention";
+        if (typeof(T) == typeof(IndicatorValueHIV))
+            return "IndicatorValues_HIV";
+        if (typeof(T) == typeof(IndicatorValueTB))
+            return "IndicatorValues_TB";
+        
+        throw new ArgumentException($"Unknown type: {typeof(T).Name}");
+    }
+
+    /// <summary>
+    /// Batch update just the Value column in chunks
     /// </summary>
     private static async Task<int> BatchUpdateValuesAsync(
         StagingDbContext db,
@@ -282,14 +298,14 @@ public static class ETLHelper
     public static void LogETLSummary(ILogger logger, string jobName, int recordsRead, int inserted, int updated, int skipped, long elapsedMs)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"╔══════════════════════════════════════════════════════════╗");
-        sb.AppendLine($"║                    {jobName,-10} SUMMARY                    ║");
+        sb.AppendLine($"╔═══════════════════════════════════════════╗");
+        sb.AppendLine($"║       {jobName,-10} SUMMARY                    ");
         sb.AppendLine($"╠══════════════════════════════════════════════════════════╣");
-        sb.AppendLine($"║  Raw Records Read:  {recordsRead,10:N0}                              ║");
-        sb.AppendLine($"║  Aggregated Insert: {inserted,10:N0}                              ║");
-        sb.AppendLine($"║  Aggregated Update: {updated,10:N0}                              ║");
-        sb.AppendLine($"║  Unchanged Groups:  {skipped,10:N0}                              ║");
-        sb.AppendLine($"║  Time Elapsed:      {elapsedMs,10:N0}ms                              ║");
+        sb.AppendLine($"║  Raw Records Read:  {recordsRead,10:N0}                              ");
+        sb.AppendLine($"║  Aggregated Insert: {inserted,10:N0}                              ");
+        sb.AppendLine($"║  Aggregated Update: {updated,10:N0}                              ");
+        sb.AppendLine($"║  Unchanged Groups:  {skipped,10:N0}                              ");
+        sb.AppendLine($"║  Time Elapsed:      {elapsedMs,10:N0}ms                              ");
         sb.AppendLine($"╚══════════════════════════════════════════════════════════╝");
         
         logger.LogInformation(sb.ToString());

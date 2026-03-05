@@ -11,17 +11,20 @@ public class ARTETLService : IARTETLService
     private readonly StagingDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ARTETLService> _logger;
+    private readonly IFacilityRegionService _facilityRegionService;
     private readonly string _sourceConnectionString;
     private readonly int _batchSize;
 
     public ARTETLService(
         StagingDbContext db,
         IConfiguration configuration,
-        ILogger<ARTETLService> logger)
+        ILogger<ARTETLService> logger,
+        IFacilityRegionService facilityRegionService)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _facilityRegionService = facilityRegionService;
         _sourceConnectionString = configuration.GetConnectionString("SourceConnection") 
             ?? throw new InvalidOperationException("SourceConnection not configured");
         _batchSize = configuration.GetValue<int>("ETL:BatchSize", 10000);
@@ -42,7 +45,14 @@ public class ARTETLService : IARTETLService
         {
             _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
             
-            // Load ALL existing aggregated records
+            // Clear existing data if this is a fresh run
+            if (triggeredBy == "system" && await ShouldClearExistingData())
+            {
+                _logger.LogInformation("Clearing existing ART data for fresh ETL");
+                await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_HIV");
+            }
+            
+            // Load existing records for aggregation
             var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValueHIV>(_db, _logger);
 
             var (recordsRead, inserted, updated, skipped) = await ProcessARTOutcomesAsync(batchId, existingRecords);
@@ -69,6 +79,12 @@ public class ARTETLService : IARTETLService
         return result;
     }
 
+    private async Task<bool> ShouldClearExistingData()
+    {
+        var count = await _db.IndicatorValues_HIV.CountAsync();
+        return count > 0;
+    }
+
     private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessARTOutcomesAsync(
         string batchId, 
         Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
@@ -79,8 +95,10 @@ public class ARTETLService : IARTETLService
         var updated = 0;
         var skipped = 0;
 
-        var facilityRegions = await GetFacilityRegionsAsync();
+        var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
+
+        var unmappedFacilities = new HashSet<string>();
 
         var query = @"
             SELECT 
@@ -88,10 +106,10 @@ public class ARTETLService : IARTETLService
                 ReportingPeriod,
                 AgeGroup,
                 SexName,
-                TX_CURR,
-                TX_VLTested,
-                TX_VLSuppressed,
-                TX_VLUndetectable
+                ISNULL(TX_CURR, 0) as TX_CURR,
+                ISNULL(TX_VLTested, 0) as TX_VLTested,
+                ISNULL(TX_VLSuppressed, 0) as TX_VLSuppressed,
+                ISNULL(TX_VLUndetectable, 0) as TX_VLUndetectable
             FROM [All_Dataset].[dbo].[tmpARTTXOutcomes]
             WHERE ReportingPeriod IS NOT NULL
             ORDER BY ReportingPeriod DESC";
@@ -126,7 +144,10 @@ public class ARTETLService : IARTETLService
             var sexName = reader.IsDBNull(3) ? "Other" : reader.GetString(3);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
+            {
+                unmappedFacilities.Add(facilityCode);
                 continue;
+            }
 
             var sex = sexName.ToUpper() switch
             {
@@ -137,69 +158,73 @@ public class ARTETLService : IARTETLService
 
             var now = DateTime.UtcNow;
 
-            // TX_CURR
-            if (!reader.IsDBNull(4) && reader.GetInt32(4) == 1)
+            // TX_CURR - Use actual value from column
+            var currValue = reader.GetInt32(4);
+            if (currValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_CURR",
                     RegionId = regionId,
-                    VisitDate = reportingPeriod.Value,
+                    VisitDate = reportingPeriod.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = null,
-                    Value = 1,
+                    Value = currValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // TX_VL_TESTED
-            if (!reader.IsDBNull(5) && reader.GetInt32(5) == 1)
+            var testedValue = reader.GetInt32(5);
+            if (testedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_TESTED",
                     RegionId = regionId,
-                    VisitDate = reportingPeriod.Value,
+                    VisitDate = reportingPeriod.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = null,
-                    Value = 1,
+                    Value = testedValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // TX_VL_SUPPRESSED
-            if (!reader.IsDBNull(6) && reader.GetInt32(6) == 1)
+            var suppressedValue = reader.GetInt32(6);
+            if (suppressedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_SUPPRESSED",
                     RegionId = regionId,
-                    VisitDate = reportingPeriod.Value,
+                    VisitDate = reportingPeriod.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = null,
-                    Value = 1,
+                    Value = suppressedValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
 
             // TX_VL_UNDETECTABLE
-            if (!reader.IsDBNull(7) && reader.GetInt32(7) == 1)
+            var undetectableValue = reader.GetInt32(7);
+            if (undetectableValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueHIV
                 {
                     Indicator = "TX_VL_UNDETECTABLE",
                     RegionId = regionId,
-                    VisitDate = reportingPeriod.Value,
+                    VisitDate = reportingPeriod.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
                     PopulationType = null,
-                    Value = 1,
+                    Value = undetectableValue,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -219,6 +244,13 @@ public class ARTETLService : IARTETLService
             }
         }
 
+        // Log unmapped facilities
+        if (unmappedFacilities.Any())
+        {
+            _logger.LogWarning("Found {Count} unmapped facilities in ART: {Facilities}", 
+                unmappedFacilities.Count, string.Join(", ", unmappedFacilities.Take(20)));
+        }
+
         // Process remaining records
         if (allRawRecords.Any())
         {
@@ -235,44 +267,6 @@ public class ARTETLService : IARTETLService
         ETLHelper.LogETLSummary(_logger, "ART Detail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
 
         return (recordsRead, inserted, updated, skipped);
-    }
-
-    private async Task<Dictionary<string, int>> GetFacilityRegionsAsync()
-    {
-        var result = new Dictionary<string, int>();
-        
-        var query = @"
-            SELECT DISTINCT FacilityCode, Region 
-            FROM [All_Dataset].[dbo].[aPrepDetail] 
-            WHERE FacilityCode IS NOT NULL AND Region IS NOT NULL";
-
-        using var connection = new SqlConnection(_sourceConnectionString);
-        using var command = new SqlCommand(query, connection);
-        
-        await connection.OpenAsync();
-        using var reader = await command.ExecuteReaderAsync();
-        
-        var regionMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Hhohho", 1 },
-            { "Manzini", 2 },
-            { "Shiselweni", 3 },
-            { "Lubombo", 4 }
-        };
-        
-        while (await reader.ReadAsync())
-        {
-            var facilityCode = reader.GetString(0);
-            var regionName = reader.GetString(1);
-            
-            if (regionMap.TryGetValue(regionName, out var regionId))
-            {
-                result[facilityCode] = regionId;
-            }
-        }
-
-        _logger.LogInformation("Found {Count} facility-region mappings", result.Count);
-        return result;
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)
