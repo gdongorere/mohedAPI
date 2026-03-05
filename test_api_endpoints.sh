@@ -22,6 +22,31 @@ TOKEN=$(curl -s -X POST "$BASE_URL/api/auth/login" \
 echo -e "${GREEN}✅ Token obtained${NC}"
 echo ""
 
+# Get HIV data for a specific month
+curl -X GET "http://localhost:5171/api/indicators/data?indicators=HTS_TST,HTS_POS&startDate=2026-02-01&endDate=2026-03-01" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get prevention dashboard for custom date range
+curl -X GET "http://localhost:5171/api/dashboard/prevention?startDate=2026-02-01&endDate=2026-02-28" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get trends by month for the last quarter
+curl -X GET "http://localhost:5171/api/indicators/trends?indicators=TX_CURR&startDate=2026-01-01&endDate=2026-03-01&periodType=monthly" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get dashboard summary as of a specific date
+curl -X GET "http://localhost:5171/api/dashboard/summary?asOfDate=2026-02-15" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get HIV dashboard as of a specific date
+curl -X GET "http://localhost:5171/api/dashboard/hiv?asOfDate=2026-02-15" \
+  -H "Authorization: Bearer $TOKEN"
+
+
+
+
+
+
 # ============================================
 # 1. HTS DATA TESTS
 # ============================================
