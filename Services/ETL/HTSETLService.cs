@@ -15,6 +15,87 @@ public class HTSETLService : IHTSETLService
     private readonly string _sourceConnectionString;
     private readonly int _batchSize;
 
+    // ============================================================
+    // CONFIGURATION SECTION - Change these values as needed
+    // ============================================================
+    
+    /// <summary>
+    /// Whether to always include HTS_TST even if positive+negative doesn't match tested
+    /// If TRUE: Always adds HTS_TST record when tested > 0
+    /// If FALSE: Only adds HTS_TST when positive+negative == tested
+    /// </summary>
+    private const bool AlwaysIncludeHtsTest = true;
+    
+    /// <summary>
+    /// Whether to log HTS discrepancies (when positive+negative != tested)
+    /// </summary>
+    private const bool LogHtsDiscrepancies = true;
+    
+    /// <summary>
+    /// Whether to clear existing data before running ETL
+    /// </summary>
+    private const bool ClearExistingDataOnRun = true;
+    
+    /// <summary>
+    /// Date filter for HTS data (set to null to process all data)
+    /// Format: new DateTime(2024, 1, 1) or null for no filter
+    /// </summary>
+    private static readonly DateTime? MinProcessDate = null; // Example: new DateTime(2024, 1, 1);
+    
+    /// <summary>
+    /// Column name mappings - Change if source column names change
+    /// </summary>
+    private static class SourceColumns
+    {
+        public const string FacilityCode = "FacilityCode";
+        public const string VisitDate = "VisitDate";
+        public const string AgeGroup = "AgeGroup";
+        public const string SexName = "SexName";
+        public const string PopulationGroup = "PopulationGroup";
+        public const string Tested = "HTS_TestedForHIV";
+        public const string Negative = "HTS_TestedNegative";
+        public const string Positive = "HTS_TestedPositive";
+        public const string Linked = "HTS_TestedPositiveInitiatedOnART";
+    }
+    
+    /// <summary>
+    /// Indicator mappings - Change if staging indicator names need to change
+    /// </summary>
+    private static class Indicators
+    {
+        public const string Test = "HTS_TST";
+        public const string Negative = "HTS_NEG";
+        public const string Positive = "HTS_POS";
+        public const string Linkage = "LINKAGE_ART";
+    }
+    
+    /// <summary>
+    /// Sex mappings - Maps source sex names to staging values
+    /// </summary>
+    private static readonly Dictionary<string, string> SexMappings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["MALE"] = "M",
+        ["FEMALE"] = "F",
+        ["M"] = "M",
+        ["F"] = "F",
+        ["Other"] = "Other",
+        ["UNKNOWN"] = "Other"
+    };
+    
+    /// <summary>
+    /// Default values for missing data
+    /// </summary>
+    private static class Defaults
+    {
+        public const string AgeGroup = "Unknown";
+        public const string Sex = "Other";
+        public const string PopulationType = null;
+    }
+    
+    // ============================================================
+    // END OF CONFIGURATION SECTION
+    // ============================================================
+
     public HTSETLService(
         StagingDbContext db,
         IConfiguration configuration,
@@ -45,11 +126,10 @@ public class HTSETLService : IHTSETLService
         {
             _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
             
-            // Clear existing data if this is a fresh run
-            if (triggeredBy == "system" && await ShouldClearExistingData())
+            // Clear existing data if configured
+            if (ClearExistingDataOnRun && triggeredBy == "system")
             {
-                _logger.LogInformation("Clearing existing HTS data for fresh ETL");
-                await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_Prevention WHERE Indicator LIKE 'HTS_%' OR Indicator = 'LINKAGE_ART'");
+                await ClearExistingDataAsync();
             }
             
             // Load existing records for aggregation
@@ -79,14 +159,28 @@ public class HTSETLService : IHTSETLService
         return result;
     }
 
-    private async Task<bool> ShouldClearExistingData()
+    private async Task ClearExistingDataAsync()
     {
-        // Check if we have any data - if not, no need to clear
-        var count = await _db.IndicatorValues_Prevention
-            .Where(x => x.Indicator.StartsWith("HTS_") || x.Indicator == "LINKAGE_ART")
-            .CountAsync();
-        
-        return count > 0;
+        try
+        {
+            var count = await _db.IndicatorValues_Prevention
+                .Where(x => x.Indicator == Indicators.Test || 
+                           x.Indicator == Indicators.Positive || 
+                           x.Indicator == Indicators.Negative || 
+                           x.Indicator == Indicators.Linkage)
+                .CountAsync();
+            
+            if (count > 0)
+            {
+                _logger.LogInformation("Clearing {Count} existing HTS records for fresh ETL", count);
+                await _db.Database.ExecuteSqlRawAsync(
+                    $"DELETE FROM IndicatorValues_Prevention WHERE Indicator IN ('{Indicators.Test}', '{Indicators.Positive}', '{Indicators.Negative}', '{Indicators.Linkage}')");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error clearing existing data, continuing with ETL");
+        }
     }
 
     private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessHTSTestingAsync(
@@ -104,31 +198,35 @@ public class HTSETLService : IHTSETLService
         var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
 
-        var query = @"
+        // Build query with optional date filter
+        var query = $@"
             SELECT 
-                FacilityCode,
-                VisitDate,
-                AgeGroup,
-                SexName,
-                PopulationGroup,
-                ISNULL(HTS_TestedForHIV, 0) as HTS_TestedForHIV,
-                ISNULL(HTS_TestedNegative, 0) as HTS_TestedNegative,
-                ISNULL(HTS_TestedPositive, 0) as HTS_TestedPositive,
-                ISNULL(HTS_TestedPositiveInitiatedOnART, 0) as HTS_TestedPositiveInitiatedOnART
+                [{SourceColumns.FacilityCode}],
+                [{SourceColumns.VisitDate}],
+                [{SourceColumns.AgeGroup}],
+                [{SourceColumns.SexName}],
+                [{SourceColumns.PopulationGroup}],
+                ISNULL([{SourceColumns.Tested}], 0) as {SourceColumns.Tested},
+                ISNULL([{SourceColumns.Negative}], 0) as {SourceColumns.Negative},
+                ISNULL([{SourceColumns.Positive}], 0) as {SourceColumns.Positive},
+                ISNULL([{SourceColumns.Linked}], 0) as {SourceColumns.Linked}
             FROM [All_Dataset].[dbo].[tmpHTSTestedDetail]
-            WHERE VisitDate IS NOT NULL
-            ORDER BY VisitDate";
+            WHERE [{SourceColumns.VisitDate}] IS NOT NULL"
+            + (MinProcessDate.HasValue ? $" AND [{SourceColumns.VisitDate}] >= '{MinProcessDate.Value:yyyy-MM-dd}'" : "")
+            + $" ORDER BY [{SourceColumns.VisitDate}]";
 
         using var connection = new SqlConnection(_sourceConnectionString);
         using var command = new SqlCommand(query, connection);
         
         await connection.OpenAsync();
         _logger.LogInformation("Connected to source database");
+        _logger.LogInformation("Executing query: {Query}", query);
         
         using var reader = await command.ExecuteReaderAsync();
-        _logger.LogInformation("Executed query, starting to read records");
-
+        
         var unmappedFacilities = new HashSet<string>();
+        var discrepancyCount = 0;
+        var totalDiscrepancy = 0;
 
         while (await reader.ReadAsync())
         {
@@ -137,7 +235,8 @@ public class HTSETLService : IHTSETLService
             if (recordsRead % 10000 == 0)
                 _logger.LogInformation("Processed {Count:N0} raw HTS records", recordsRead);
 
-            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0);
+            // Read values with null handling
+            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0).Trim();
             if (string.IsNullOrEmpty(facilityCode))
                 continue;
 
@@ -145,9 +244,9 @@ public class HTSETLService : IHTSETLService
             if (!visitDate.HasValue)
                 continue;
 
-            var ageGroup = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2);
-            var sexName = reader.IsDBNull(3) ? "Other" : reader.GetString(3);
-            var populationGroup = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var ageGroup = reader.IsDBNull(2) ? Defaults.AgeGroup : reader.GetString(2).Trim();
+            var sexName = reader.IsDBNull(3) ? Defaults.Sex : reader.GetString(3).Trim();
+            var populationGroup = reader.IsDBNull(4) ? Defaults.PopulationType : reader.GetString(4).Trim();
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
             {
@@ -155,40 +254,55 @@ public class HTSETLService : IHTSETLService
                 continue;
             }
 
-            var sex = sexName.ToUpper() switch
-            {
-                "MALE" => "M",
-                "FEMALE" => "F",
-                _ => "Other"
-            };
+            // Map sex to staging value
+            var sex = SexMappings.TryGetValue(sexName, out var mappedSex) ? mappedSex : Defaults.Sex;
 
             var now = DateTime.UtcNow;
 
-            // HTS Tested - use the actual count
+            // Get all values
             var testedValue = reader.GetInt32(5);
-            if (testedValue > 0)
+            var negativeValue = reader.GetInt32(6);
+            var positiveValue = reader.GetInt32(7);
+            var linkedValue = reader.GetInt32(8);
+
+            // Log discrepancy if configured
+            if (LogHtsDiscrepancies && testedValue > 0 && (positiveValue + negativeValue) != testedValue)
             {
-                allRawRecords.Add(new IndicatorValuePrevention
-                {
-                    Indicator = "HTS_TST",
-                    RegionId = regionId,
-                    VisitDate = visitDate.Value.Date,
-                    AgeGroup = ageGroup,
-                    Sex = sex,
-                    PopulationType = populationGroup,
-                    Value = testedValue,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
+                discrepancyCount++;
+                totalDiscrepancy += testedValue - (positiveValue + negativeValue);
+                _logger.LogDebug("HTS discrepancy #{Count} at {FacilityCode}/{VisitDate}: Tested={Tested}, Pos={Pos}, Neg={Neg}, Diff={Diff}",
+                    discrepancyCount, facilityCode, visitDate.Value.Date, testedValue, positiveValue, negativeValue, 
+                    testedValue - (positiveValue + negativeValue));
             }
 
-            // HTS Negative
-            var negativeValue = reader.GetInt32(6);
+            // Add HTS_TST based on configuration
+            if (testedValue > 0)
+            {
+                bool shouldAddTest = AlwaysIncludeHtsTest || (positiveValue + negativeValue) == testedValue;
+                
+                if (shouldAddTest)
+                {
+                    allRawRecords.Add(new IndicatorValuePrevention
+                    {
+                        Indicator = Indicators.Test,
+                        RegionId = regionId,
+                        VisitDate = visitDate.Value.Date,
+                        AgeGroup = ageGroup,
+                        Sex = sex,
+                        PopulationType = populationGroup,
+                        Value = testedValue,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+            }
+
+            // Add HTS_NEG if negative > 0
             if (negativeValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
-                    Indicator = "HTS_NEG",
+                    Indicator = Indicators.Negative,
                     RegionId = regionId,
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
@@ -200,34 +314,29 @@ public class HTSETLService : IHTSETLService
                 });
             }
 
-            // HTS Positive
-            if (!reader.IsDBNull(7))
+            // Add HTS_POS if positive > 0
+            if (positiveValue > 0)
             {
-                var positiveValue = reader.GetInt32(7);
-                if (positiveValue > 0)
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
-                    allRawRecords.Add(new IndicatorValuePrevention
-                    {
-                        Indicator = "HTS_POS",
-                        RegionId = regionId,
-                        VisitDate = visitDate.Value.Date,
-                        AgeGroup = ageGroup,
-                        Sex = sex,
-                        PopulationType = populationGroup,
-                        Value = positiveValue,  // Use actual value
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
+                    Indicator = Indicators.Positive,
+                    RegionId = regionId,
+                    VisitDate = visitDate.Value.Date,
+                    AgeGroup = ageGroup,
+                    Sex = sex,
+                    PopulationType = populationGroup,
+                    Value = positiveValue,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
             }
 
-            // Linkage to ART
-            var linkedValue = reader.GetInt32(8);
+            // Add LINKAGE_ART if linked > 0
             if (linkedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
                 {
-                    Indicator = "LINKAGE_ART",
+                    Indicator = Indicators.Linkage,
                     RegionId = regionId,
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
@@ -253,11 +362,18 @@ public class HTSETLService : IHTSETLService
             }
         }
 
-        // Log unmapped facilities
+        // Log summary of unmapped facilities
         if (unmappedFacilities.Any())
         {
             _logger.LogWarning("Found {Count} unmapped facilities: {Facilities}", 
                 unmappedFacilities.Count, string.Join(", ", unmappedFacilities.Take(20)));
+        }
+
+        // Log discrepancy summary
+        if (discrepancyCount > 0)
+        {
+            _logger.LogWarning("Found {Count} HTS discrepancies totaling {TotalDiff} tests", 
+                discrepancyCount, totalDiscrepancy);
         }
 
         // Process remaining records

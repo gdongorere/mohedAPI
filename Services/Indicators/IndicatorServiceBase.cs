@@ -35,4 +35,16 @@ public abstract class IndicatorServiceBase
         // This will be implemented by specific services
         return result;
     }
+
+    protected static string GetRegionName(int regionId)
+    {
+        return regionId switch
+        {
+            1 => "Hhohho",
+            2 => "Manzini",
+            3 => "Shiselweni",
+            4 => "Lubombo",
+            _ => "Unknown"
+        };
+    }
 }

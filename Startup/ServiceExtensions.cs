@@ -29,29 +29,30 @@ public static class ServiceExtensions
     }
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
-    {
-        // Core services
-        services.AddScoped<IJwtService, JwtService>();
-        services.AddScoped<IEncryptionService, EncryptionService>();
-        services.AddScoped<IPeriodService, PeriodService>();
+{
+    // Core services
+    services.AddScoped<IJwtService, JwtService>();
+    services.AddScoped<IEncryptionService, EncryptionService>();
+    services.AddScoped<IPeriodService, PeriodService>();
 
-        // Indicator services
-        services.AddScoped<IHIVIndicatorService, HIVIndicatorService>();
-        services.AddScoped<IPreventionIndicatorService, PreventionIndicatorService>();
-        
-        // Target services
-        services.AddScoped<ITargetService, TargetService>();
+    // Indicator services - FIXED PATHS
+    services.AddScoped<IHIVIndicatorService, HIVIndicatorService>();
+    services.AddScoped<IPreventionIndicatorService, PreventionIndicatorService>();
+    
+    // Target services
+    services.AddScoped<ITargetService, TargetService>();
 
-        // ETL services
-services.AddScoped<IHTSETLService, HTSETLService>();
-services.AddScoped<IPrEPETLService, PrEPETLService>();
-services.AddScoped<IARTETLService, ARTETLService>();
-services.AddScoped<IETLService, ETLService>();
+    // ETL services
+    services.AddScoped<IHTSETLService, HTSETLService>();
+    services.AddScoped<IPrEPETLService, PrEPETLService>();
+    services.AddScoped<IARTETLService, ARTETLService>();
+    services.AddScoped<IETLService, ETLService>();
+    
+    // Facility Region Service (Singleton for caching)
+    services.AddSingleton<IFacilityRegionService, FacilityRegionService>();
 
-services.AddSingleton<IFacilityRegionService, FacilityRegionService>();
-
-        return services;
-    }
+    return services;
+}
 
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {

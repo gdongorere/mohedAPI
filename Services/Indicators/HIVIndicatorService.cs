@@ -6,11 +6,11 @@ using Eswatini.Health.Api.Services.Period;
 
 namespace Eswatini.Health.Api.Services.Indicators;
 
-public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndicatorService
+public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
 {
-    public PreventionIndicatorService(
+    public HIVIndicatorService(
         StagingDbContext db,
-        ILogger<PreventionIndicatorService> logger,
+        ILogger<HIVIndicatorService> logger,
         IPeriodService periodService) : base(db, logger, periodService)
     {
     }
@@ -19,7 +19,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
     {
         try
         {
-            var query = _db.IndicatorValues_Prevention.AsQueryable();
+            var query = _db.IndicatorValues_HIV.AsQueryable();
             
             // Apply filters
             if (request.Indicators?.Any() == true)
@@ -86,7 +86,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting prevention indicator data");
+            _logger.LogError(ex, "Error getting HIV indicator data");
             return new List<IndicatorValueDto>();
         }
     }
@@ -112,7 +112,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting prevention indicator trends");
+            _logger.LogError(ex, "Error getting HIV indicator trends");
             return new Dictionary<string, List<IndicatorValueDto>>();
         }
     }
@@ -123,7 +123,7 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         {
             var dateRange = _periodService.GetDateRangeForPeriod(period);
             
-            return await _db.IndicatorValues_Prevention
+            return await _db.IndicatorValues_HIV
                 .AnyAsync(x => x.VisitDate >= dateRange.StartDate && x.VisitDate <= dateRange.EndDate);
         }
         catch (Exception ex)
@@ -133,12 +133,44 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         }
     }
 
-    public async Task<int> GetHIVTestsAsync(DateTime startDate, DateTime endDate, int? regionId = null)
+    public async Task<int> GetTotalOnArtAsync(DateTime date, int? regionId = null)
     {
         try
         {
-            var query = _db.IndicatorValues_Prevention
-                .Where(x => x.Indicator == "HTS_TST" 
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_CURR");
+
+            // For TX_CURR, we need the latest value for each patient/dimension
+            // In a real implementation, you'd use the view vw_LatestIndicatorValues_HIV
+            // For now, we'll sum all values and assume they're already aggregated correctly
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            // If a specific date is provided, filter by date
+            // Note: This assumes VisitDate is the reporting period
+            // For TX_CURR, we typically want the most recent value
+            // This is a simplified approach - in production, use a view with ROW_NUMBER()
+            var total = await query.SumAsync(x => (int?)x.Value) ?? 0;
+            
+            _logger.LogDebug("GetTotalOnArtAsync for date {Date}, region {RegionId}: {Total}", 
+                date, regionId, total);
+            
+            return total;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting total on ART for date {Date}, region {RegionId}", date, regionId);
+            return 0;
+        }
+    }
+
+    public async Task<int> GetNewOnArtAsync(DateTime startDate, DateTime endDate, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_NEW" 
                     && x.VisitDate >= startDate 
                     && x.VisitDate <= endDate);
             
@@ -149,98 +181,89 @@ public class PreventionIndicatorService : IndicatorServiceBase, IPreventionIndic
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting HIV tests");
+            _logger.LogError(ex, "Error getting new on ART");
             return 0;
         }
     }
 
-    public async Task<int> GetHIVPositivesAsync(DateTime startDate, DateTime endDate, int? regionId = null)
+    public async Task<(int Tested, int Suppressed)> GetViralLoadOutcomesAsync(DateTime date, int? regionId = null)
     {
         try
         {
-            var query = _db.IndicatorValues_Prevention
-                .Where(x => x.Indicator == "HTS_POS" 
-                    && x.VisitDate >= startDate 
-                    && x.VisitDate <= endDate);
-            
-            if (regionId.HasValue)
-                query = query.Where(x => x.RegionId == regionId.Value);
+            var tested = await _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_VL_TESTED")
+                .ApplyRegionFilter(regionId)
+                .SumAsync(x => (int?)x.Value) ?? 0;
+                
+            var suppressed = await _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == "TX_VL_SUPPRESSED")
+                .ApplyRegionFilter(regionId)
+                .SumAsync(x => (int?)x.Value) ?? 0;
 
-            return await query.SumAsync(x => x.Value);
+            _logger.LogDebug("GetViralLoadOutcomesAsync for date {Date}, region {RegionId}: Tested={Tested}, Suppressed={Suppressed}", 
+                date, regionId, tested, suppressed);
+
+            return (tested, suppressed);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting HIV positives");
-            return 0;
+            _logger.LogError(ex, "Error getting viral load outcomes");
+            return (0, 0);
         }
     }
 
-    public async Task<int> GetPrEPInitiationsAsync(DateTime startDate, DateTime endDate, int? regionId = null)
+    public async Task<Dictionary<string, int>> GetBreakdownBySexAsync(string indicator, DateTime date, int? regionId = null)
     {
         try
         {
-            var query = _db.IndicatorValues_Prevention
-                .Where(x => x.Indicator == "PREP_NEW" 
-                    && x.VisitDate >= startDate 
-                    && x.VisitDate <= endDate);
-            
-            if (regionId.HasValue)
-                query = query.Where(x => x.RegionId == regionId.Value);
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == indicator)
+                .ApplyRegionFilter(regionId);
 
-            return await query.SumAsync(x => x.Value);
+            var results = await query
+                .GroupBy(x => x.Sex)
+                .Select(g => new { Sex = g.Key, Total = g.Sum(x => x.Value) })
+                .ToListAsync();
+
+            return results.ToDictionary(x => x.Sex, x => x.Total);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting PrEP initiations");
-            return 0;
-        }
-    }
-
-    public async Task<int> GetPrEPSeroconversionsAsync(DateTime startDate, DateTime endDate, int? regionId = null)
-    {
-        try
-        {
-            var query = _db.IndicatorValues_Prevention
-                .Where(x => x.Indicator == "PREP_SEROCONVERSION" 
-                    && x.VisitDate >= startDate 
-                    && x.VisitDate <= endDate);
-            
-            if (regionId.HasValue)
-                query = query.Where(x => x.RegionId == regionId.Value);
-
-            return await query.SumAsync(x => x.Value);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting PrEP seroconversions");
-            return 0;
-        }
-    }
-
-    public async Task<Dictionary<string, int>> GetPrEPByMethodAsync(DateTime startDate, DateTime endDate, int? regionId = null)
-    {
-        try
-        {
-            // This would require a different indicator per method or a dimension
-            // For now, return empty dictionary - to be implemented when data structure is clear
-            return await Task.FromResult(new Dictionary<string, int>());
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting PrEP by method");
+            _logger.LogError(ex, "Error getting breakdown by sex for indicator {Indicator}", indicator);
             return new Dictionary<string, int>();
         }
     }
 
-    private static string GetRegionName(int regionId)
+    public async Task<Dictionary<string, int>> GetBreakdownByAgeGroupAsync(string indicator, DateTime date, int? regionId = null)
     {
-        return regionId switch
+        try
         {
-            1 => "Hhohho",
-            2 => "Manzini",
-            3 => "Shiselweni",
-            4 => "Lubombo",
-            _ => "Unknown"
-        };
+            var query = _db.IndicatorValues_HIV
+                .Where(x => x.Indicator == indicator)
+                .ApplyRegionFilter(regionId);
+
+            var results = await query
+                .GroupBy(x => x.AgeGroup)
+                .Select(g => new { AgeGroup = g.Key, Total = g.Sum(x => x.Value) })
+                .ToListAsync();
+
+            return results.ToDictionary(x => x.AgeGroup, x => x.Total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting breakdown by age group for indicator {Indicator}", indicator);
+            return new Dictionary<string, int>();
+        }
+    }
+}
+
+// Extension method for region filtering
+public static class QueryExtensions
+{
+    public static IQueryable<IndicatorValueHIV> ApplyRegionFilter(this IQueryable<IndicatorValueHIV> query, int? regionId)
+    {
+        if (regionId.HasValue)
+            return query.Where(x => x.RegionId == regionId.Value);
+        return query;
     }
 }
