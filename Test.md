@@ -1,6 +1,7 @@
-Here's a comprehensive testing guide with all API endpoints, example requests, and expected responses:
+# 📋 **Complete API Testing Guide**
 
 ## 📋 **Base URL**
+
 ```
 http://localhost:5171
 ```
@@ -10,18 +11,23 @@ http://localhost:5171
 ## 🔐 **Authentication Endpoints**
 
 ### 1. **Register a new user**
-```bash
-curl -X POST "http://localhost:5171/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "testuser@health.gov.sz",
-    "name": "Test",
-    "surname": "User",
-    "password": "Test123!"
-  }'
+
+```powershell
+$body = @{
+    email = "testuser@health.gov.sz"
+    name = "Test"
+    surname = "User"
+    password = "Test123!"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/auth/register" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -37,17 +43,28 @@ curl -X POST "http://localhost:5171/api/auth/register" \
 }
 ```
 
-### 2. **Login**
-```bash
-curl -X POST "http://localhost:5171/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@health.gov.sz",
-    "password": "AdminPass123!"
-  }'
+### 2. **Login and Save Token**
+
+```powershell
+$loginBody = @{
+    email = "admin@health.gov.sz"
+    password = "AdminPass123!"
+} | ConvertTo-Json
+
+$response = Invoke-RestMethod -Uri "http://localhost:5171/api/auth/login" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $loginBody
+
+$token = $response.data.token
+Write-Host "Token: $token"
+
+# Save token for later use
+$env:TOKEN = $token
 ```
 
 **Save the token from response:**
+
 ```json
 {
   "success": true,
@@ -68,9 +85,15 @@ curl -X POST "http://localhost:5171/api/auth/login" \
 ```
 
 ### 3. **Get Current User**
-```bash
-curl -X GET "http://localhost:5171/api/auth/me" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/users/me" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -78,56 +101,54 @@ curl -X GET "http://localhost:5171/api/auth/me" \
 ## 📊 **Dashboard Endpoints**
 
 ### 4. **Get Dashboard Summary**
-```bash
-curl -X GET "http://localhost:5171/api/dashboard/summary" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/summary" `
+    -Method Get `
+    -Headers $headers
 
 # With specific date
-curl -X GET "http://localhost:5171/api/dashboard/summary?asOfDate=2026-03-01" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "asOfDate": "2026-03-04T00:00:00Z",
-    "metrics": [
-      {
-        "indicator": "TX_CURR",
-        "name": "Currently on ART",
-        "value": 214884,
-        "target": 220000,
-        "percentageOfTarget": 97.7,
-        "unit": "number",
-        "trend": "up"
-      }
-    ],
-    "charts": [],
-    "lastUpdated": "2026-03-04T14:30:33Z"
-  }
-}
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/summary?asOfDate=2026-03-01" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 5. **Get HIV Dashboard**
-```bash
-curl -X GET "http://localhost:5171/api/dashboard/hiv" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/hiv" `
+    -Method Get `
+    -Headers $headers
 
 # With specific date
-curl -X GET "http://localhost:5171/api/dashboard/hiv?asOfDate=2026-03-01" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/hiv?asOfDate=2026-03-01" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 6. **Get Prevention Dashboard**
-```bash
-curl -X GET "http://localhost:5171/api/dashboard/prevention" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/prevention" `
+    -Method Get `
+    -Headers $headers
 
 # With date range
-curl -X GET "http://localhost:5171/api/dashboard/prevention?startDate=2026-02-01&endDate=2026-02-28" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/prevention?startDate=2026-02-01&endDate=2026-02-28" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -135,42 +156,60 @@ curl -X GET "http://localhost:5171/api/dashboard/prevention?startDate=2026-02-01
 ## 📈 **Indicators Endpoints**
 
 ### 7. **Get All Available Indicators**
-```bash
-curl -X GET "http://localhost:5171/api/indicators/available" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/available" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 8. **Get Indicator Data**
-```bash
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
 # Get all indicators
-curl -X GET "http://localhost:5171/api/indicators/data" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/data" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by specific indicators
-curl -X GET "http://localhost:5171/api/indicators/data?indicators=TX_CURR,TX_NEW" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/data?indicators=TX_CURR,TX_NEW" `
+    -Method Get `
+    -Headers $headers
 
 # With date range
-curl -X GET "http://localhost:5171/api/indicators/data?startDate=2026-01-01&endDate=2026-03-01" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/data?startDate=2026-01-01&endDate=2026-03-01" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by region
-curl -X GET "http://localhost:5171/api/indicators/data?regionId=1" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/data?regionId=1" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by demographic
-curl -X GET "http://localhost:5171/api/indicators/data?ageGroup=25-29&sex=F" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-
-# Chart format
-curl -X GET "http://localhost:5171/api/indicators/data?format=chart" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/data?ageGroup=25-29&sex=F" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 9. **Get Indicator Trends**
-```bash
-curl -X GET "http://localhost:5171/api/indicators/trends?indicators=TX_CURR,TX_NEW&startDate=2026-01-01&endDate=2026-03-01&periodType=monthly" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/indicators/trends?indicators=TX_CURR,TX_NEW&startDate=2026-01-01&endDate=2026-03-01&periodType=monthly" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -178,12 +217,19 @@ curl -X GET "http://localhost:5171/api/indicators/trends?indicators=TX_CURR,TX_N
 ## 🗺️ **Regions Endpoints**
 
 ### 10. **Get All Regions**
-```bash
-curl -X GET "http://localhost:5171/api/regions" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/regions" `
+    -Method Get `
+    -Headers $headers
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -202,52 +248,82 @@ curl -X GET "http://localhost:5171/api/regions" \
 ## 🎯 **Targets Endpoints** (Admin Only)
 
 ### 11. **Get All Targets**
-```bash
-curl -X GET "http://localhost:5171/api/targets" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by indicator
-curl -X GET "http://localhost:5171/api/targets?indicator=TX_CURR" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets?indicator=TX_CURR" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by region
-curl -X GET "http://localhost:5171/api/targets?regionId=1" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets?regionId=1" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by year
-curl -X GET "http://localhost:5171/api/targets?year=2026" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets?year=2026" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 12. **Get Specific Target**
-```bash
-curl -X GET "http://localhost:5171/api/targets/1" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets/1" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 13. **Create Target** (Admin Only)
-```bash
-curl -X POST "http://localhost:5171/api/targets" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "indicator": "TX_CURR",
-    "regionId": null,
-    "year": 2026,
-    "targetValue": 220000,
-    "targetType": "number",
-    "notes": "National target for 2026"
-  }'
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+    "Content-Type" = "application/json"
+}
+
+$targetBody = @{
+    indicator = "TX_CURR"
+    regionId = $null
+    year = 2026
+    targetValue = 220000
+    targetType = "number"
+    notes = "National target for 2026"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets" `
+    -Method Post `
+    -Headers $headers `
+    -Body $targetBody
 ```
 
 ### 14. **Get Target Summary**
-```bash
-curl -X GET "http://localhost:5171/api/targets/summary/TX_CURR?year=2026" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets/summary/TX_CURR?year=2026" `
+    -Method Get `
+    -Headers $headers
 
 # With quarter
-curl -X GET "http://localhost:5171/api/targets/summary/TX_CURR?year=2026&quarter=1" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/targets/summary/TX_CURR?year=2026&quarter=1" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -255,55 +331,94 @@ curl -X GET "http://localhost:5171/api/targets/summary/TX_CURR?year=2026&quarter
 ## 🔄 **ETL Endpoints**
 
 ### 15. **Trigger HTS ETL**
-```bash
-curl -X POST "http://localhost:5171/api/etl/trigger?source=hts" \
-  -H "X-ETL-Key: simple-etl-key-2026" \
-  -H "Content-Type: application/json" \
-  -d "{}"
+
+```powershell
+$etlHeaders = @{
+    "X-ETL-Key" = "simple-etl-key-2026"
+    "Content-Type" = "application/json"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/trigger?source=hts" `
+    -Method Post `
+    -Headers $etlHeaders `
+    -Body "{}"
 ```
 
 ### 16. **Trigger PrEP ETL**
-```bash
-curl -X POST "http://localhost:5171/api/etl/trigger?source=prep" \
-  -H "X-ETL-Key: simple-etl-key-2026" \
-  -H "Content-Type: application/json" \
-  -d "{}"
+
+```powershell
+$etlHeaders = @{
+    "X-ETL-Key" = "simple-etl-key-2026"
+    "Content-Type" = "application/json"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/trigger?source=prep" `
+    -Method Post `
+    -Headers $etlHeaders `
+    -Body "{}"
 ```
 
 ### 17. **Trigger ART ETL**
-```bash
-curl -X POST "http://localhost:5171/api/etl/trigger?source=art" \
-  -H "X-ETL-Key: simple-etl-key-2026" \
-  -H "Content-Type: application/json" \
-  -d "{}"
+
+```powershell
+$etlHeaders = @{
+    "X-ETL-Key" = "simple-etl-key-2026"
+    "Content-Type" = "application/json"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/trigger?source=art" `
+    -Method Post `
+    -Headers $etlHeaders `
+    -Body "{}"
 ```
 
 ### 18. **Get ETL Status** (Admin Only)
-```bash
-curl -X GET "http://localhost:5171/api/etl/status/HTS" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
 
-curl -X GET "http://localhost:5171/api/etl/status/PrEP" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
 
-curl -X GET "http://localhost:5171/api/etl/status/ART" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/status/HTS" `
+    -Method Get `
+    -Headers $headers
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/status/PrEP" `
+    -Method Get `
+    -Headers $headers
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/status/ART" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 19. **Get ETL History** (Admin Only)
-```bash
-curl -X GET "http://localhost:5171/api/etl/history" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/history" `
+    -Method Get `
+    -Headers $headers
 
 # Filter by job
-curl -X GET "http://localhost:5171/api/etl/history?jobName=HTS&limit=50" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/history?jobName=HTS&limit=50" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 20. **Get Last Run Times** (Admin Only)
-```bash
-curl -X GET "http://localhost:5171/api/etl/last-runs" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/last-runs" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -311,19 +426,32 @@ curl -X GET "http://localhost:5171/api/etl/last-runs" \
 ## 👥 **User Endpoints**
 
 ### 21. **Get All Users** (Admin Only)
-```bash
-curl -X GET "http://localhost:5171/api/users" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/users" `
+    -Method Get `
+    -Headers $headers
 
 # Filter active users
-curl -X GET "http://localhost:5171/api/users?active=true" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+Invoke-RestMethod -Uri "http://localhost:5171/api/users?active=true" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ### 22. **Get Current User**
-```bash
-curl -X GET "http://localhost:5171/api/users/me" \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $env:TOKEN"
+}
+
+Invoke-RestMethod -Uri "http://localhost:5171/api/users/me" `
+    -Method Get `
+    -Headers $headers
 ```
 
 ---
@@ -331,11 +459,13 @@ curl -X GET "http://localhost:5171/api/users/me" \
 ## 🏥 **Health Check** (Public)
 
 ### 23. **Health Check**
-```bash
-curl -X GET "http://localhost:5171/health"
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5171/health" -Method Get
 ```
 
 **Expected Response:**
+
 ```json
 {
   "status": "healthy",
@@ -347,87 +477,146 @@ curl -X GET "http://localhost:5171/health"
 
 ---
 
-## 📝 **Complete Test Script**
+## 📝 **Complete PowerShell Test Script**
 
-Save this as `test-api.sh`:
+Save this as **Test-Api.ps1**:
 
-```bash
-#!/bin/bash
+```powershell
+# Test-Api.ps1 - Complete API Test Script for PowerShell
 
-# Configuration
-BASE_URL="http://localhost:5171"
-ETL_KEY="simple-etl-key-2026"
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "Eswatini Health API Test Script" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
 
-echo "========================================="
-echo "Eswatini Health API Test Script"
-echo "========================================="
+$BASE_URL = "http://localhost:5171"
+$ETL_KEY = "simple-etl-key-2026"
+
+# Function to pretty print JSON
+function Write-JsonResponse($response) {
+    $response | ConvertTo-Json -Depth 10
+}
 
 # 1. Health Check
-echo -e "\n1. Testing Health Check..."
-curl -s -X GET "$BASE_URL/health" | jq '.'
+Write-Host "`n1. Testing Health Check..." -ForegroundColor Green
+$health = Invoke-RestMethod -Uri "$BASE_URL/health" -Method Get
+Write-JsonResponse $health
 
 # 2. Register a test user
-echo -e "\n2. Registering test user..."
-curl -s -X POST "$BASE_URL/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "tester@health.gov.sz",
-    "name": "Test",
-    "surname": "Tester",
-    "password": "Test123!"
-  }' | jq '.'
+Write-Host "`n2. Registering test user..." -ForegroundColor Green
+$registerBody = @{
+    email = "tester@health.gov.sz"
+    name = "Test"
+    surname = "Tester"
+    password = "Test123!"
+} | ConvertTo-Json
+
+try {
+    $register = Invoke-RestMethod -Uri "$BASE_URL/api/auth/register" `
+        -Method Post `
+        -ContentType "application/json" `
+        -Body $registerBody
+    Write-JsonResponse $register
+} catch {
+    Write-Host "User might already exist: $_" -ForegroundColor Yellow
+}
 
 # 3. Login to get token
-echo -e "\n3. Logging in as admin..."
-TOKEN=$(curl -s -X POST "$BASE_URL/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@health.gov.sz",
-    "password": "AdminPass123!"
-  }' | jq -r '.data.token')
+Write-Host "`n3. Logging in as admin..." -ForegroundColor Green
+$loginBody = @{
+    email = "admin@health.gov.sz"
+    password = "AdminPass123!"
+} | ConvertTo-Json
 
-echo "Token: $TOKEN"
+$loginResponse = Invoke-RestMethod -Uri "$BASE_URL/api/auth/login" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $loginBody
+
+$token = $loginResponse.data.token
+Write-Host "Token: $token" -ForegroundColor Yellow
+$global:TOKEN = $token
+
+$authHeaders = @{
+    "Authorization" = "Bearer $token"
+}
 
 # 4. Get regions
-echo -e "\n4. Getting regions..."
-curl -s -X GET "$BASE_URL/api/regions" \
-  -H "Authorization: Bearer $TOKEN" | jq '.'
+Write-Host "`n4. Getting regions..." -ForegroundColor Green
+$regions = Invoke-RestMethod -Uri "$BASE_URL/api/regions" `
+    -Method Get `
+    -Headers $authHeaders
+Write-JsonResponse $regions
 
 # 5. Get available indicators
-echo -e "\n5. Getting available indicators..."
-curl -s -X GET "$BASE_URL/api/indicators/available" \
-  -H "Authorization: Bearer $TOKEN" | jq '.'
+Write-Host "`n5. Getting available indicators..." -ForegroundColor Green
+$indicators = Invoke-RestMethod -Uri "$BASE_URL/api/indicators/available" `
+    -Method Get `
+    -Headers $authHeaders
+Write-JsonResponse $indicators
 
 # 6. Get dashboard summary
-echo -e "\n6. Getting dashboard summary..."
-curl -s -X GET "$BASE_URL/api/dashboard/summary" \
-  -H "Authorization: Bearer $TOKEN" | jq '.'
+Write-Host "`n6. Getting dashboard summary..." -ForegroundColor Green
+$dashboard = Invoke-RestMethod -Uri "$BASE_URL/api/dashboard/summary" `
+    -Method Get `
+    -Headers $authHeaders
+Write-JsonResponse $dashboard
 
 # 7. Trigger HTS ETL
-echo -e "\n7. Triggering HTS ETL..."
-curl -s -X POST "$BASE_URL/api/etl/trigger?source=hts" \
-  -H "X-ETL-Key: $ETL_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{}" | jq '.'
+Write-Host "`n7. Triggering HTS ETL..." -ForegroundColor Green
+$etlHeaders = @{
+    "X-ETL-Key" = $ETL_KEY
+    "Content-Type" = "application/json"
+}
 
-echo -e "\n========================================="
-echo "Tests completed!"
-echo "========================================="
+$etlResult = Invoke-RestMethod -Uri "$BASE_URL/api/etl/trigger?source=hts" `
+    -Method Post `
+    -Headers $etlHeaders `
+    -Body "{}"
+Write-JsonResponse $etlResult
+
+Write-Host "`n=========================================" -ForegroundColor Cyan
+Write-Host "Tests completed!" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
 ```
 
-Make it executable:
-```bash
-chmod +x test-api.sh
+### How to run the PowerShell script:
+
+1. **Save the script** as `Test-Api.ps1`
+2. **Open PowerShell** as Administrator
+3. **Run the script:**
+
+```powershell
+# Navigate to the script directory
+cd C:\path\to\your\script
+
+# Run the script
+.\Test-Api.ps1
+
+# If you get execution policy error, run:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# Then run the script again
 ```
 
-Run it:
-```bash
-./test-api.sh
+### One-liner commands for quick testing:
+
+```powershell
+# Login and capture token
+$token = (Invoke-RestMethod -Uri "http://localhost:5171/api/auth/login" -Method Post -ContentType "application/json" -Body '{"email":"admin@health.gov.sz","password":"AdminPass123!"}').data.token
+
+# Use token for subsequent calls
+$headers = @{Authorization = "Bearer $token"}
+Invoke-RestMethod -Uri "http://localhost:5171/api/dashboard/summary" -Headers $headers
+
+# Trigger ETL
+$etlHeaders = @{"X-ETL-Key" = "simple-etl-key-2026"}
+Invoke-RestMethod -Uri "http://localhost:5171/api/etl/trigger?source=hts" -Method Post -Headers $etlHeaders -Body "{}"
 ```
+
+---
 
 ## 📊 **Postman Collection**
 
-You can also import this into Postman:
+You can import this into Postman:
 
 ```json
 {
@@ -469,8 +658,7 @@ You can also import this into Postman:
 }
 ```
 
-Set environment variable:
-- `base_url`: `http://localhost:5171`
-- `token`: (your JWT token after login)
+Set environment variables in Postman:
 
-This covers all your API endpoints with working examples! 🚀
+- `base_url`: `http://localhost:5171`
+- `token`: (your JWT token after login, set automatically using Tests tab)
