@@ -31,86 +31,82 @@ public class PrEPETLService : IPrEPETLService
     }
 
     public async Task<ETLResult> RunAsync(string triggeredBy = "system")
+{
+    var result = new ETLResult
     {
-        var result = new ETLResult
-        {
-            JobName = "PrEP ETL",
-            StartTime = DateTime.UtcNow
-        };
+        JobName = "PrEP ETL",
+        StartTime = DateTime.UtcNow
+    };
 
-        var batchId = $"PREP_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
-        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+    var batchId = $"PREP_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
+    var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        try
-        {
-            _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
-            
-            // Clear existing data if this is a fresh run
-            if (triggeredBy == "system" && await ShouldClearExistingData())
-            {
-                _logger.LogInformation("Clearing existing PrEP data for fresh ETL");
-                await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_Prevention WHERE Indicator LIKE 'PREP_%'");
-            }
-            
-            // Load existing records for aggregation
-            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
+    try
+    {
+        _logger.LogInformation("🚀 Starting PrEP ETL with batch {BatchId}", batchId);
+        
+        // Process all source data into memory FIRST
+        _logger.LogInformation("Step 1: Reading and aggregating source data from LineListingsPrep and aPrepDetail...");
+        
+        var (prepRecordsRead, prepFinalRecords) = await ProcessLineListingsPrepAsync();
+        var (detailRecordsRead, detailFinalRecords) = await ProcessAPrepDetailAsync();
+        
+        var totalRecordsRead = prepRecordsRead + detailRecordsRead;
+        var allFinalRecords = new List<IndicatorValuePrevention>();
+        allFinalRecords.AddRange(prepFinalRecords);
+        allFinalRecords.AddRange(detailFinalRecords);
+        
+        _logger.LogInformation("Step 2: Successfully processed {RecordsRead} raw records into {FinalCount} aggregated records", 
+            totalRecordsRead, allFinalRecords.Count);
+        
+        // Clear existing PrEP data and insert new data
+        // Note: No transaction here - ETLService already handles the transaction
+        _logger.LogInformation("Step 3: Replacing staging data...");
+        
+        await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_Prevention WHERE Indicator LIKE 'PREP_%'");
+        
+        await _db.IndicatorValues_Prevention.AddRangeAsync(allFinalRecords);
+        var inserted = await _db.SaveChangesAsync();
+        
+        result.Success = true;
+        result.BatchId = batchId;
+        result.RecordsRead = totalRecordsRead;
+        result.RecordsInserted = inserted;
+        result.RecordsUpdated = 0;
+        result.EndTime = DateTime.UtcNow;
+        
+        _logger.LogInformation("Step 4: Successfully inserted {Inserted} records into staging", inserted);
 
-            // Process LineListingsPrep (primary source for initiations)
-            var (prepRecordsRead, prepInserted, prepUpdated, prepSkipped) = await ProcessLineListingsPrepAsync(batchId, existingRecords);
-            
-            // Process aPrepDetail (secondary source for seroconversions only)
-            var (detailRecordsRead, detailInserted, detailUpdated, detailSkipped) = await ProcessAPrepDetailAsync(batchId, existingRecords);
-
-            result.Success = true;
-            result.BatchId = batchId;
-            result.RecordsRead = prepRecordsRead + detailRecordsRead;
-            result.RecordsInserted = prepInserted + detailInserted;
-            result.RecordsUpdated = prepUpdated + detailUpdated;
-            result.EndTime = DateTime.UtcNow;
-
-            totalStopwatch.Stop();
-            
-            _logger.LogInformation("");
-            _logger.LogInformation("═══════════════════════════════════════════════════════════");
-            _logger.LogInformation("📊 PrEP ETL FINAL SUMMARY");
-            _logger.LogInformation("═══════════════════════════════════════════════════════════");
-            _logger.LogInformation($"  Raw Records Read:      {result.RecordsRead,15:N0}");
-            _logger.LogInformation($"  Aggregated Inserted:   {result.RecordsInserted,15:N0}");
-            _logger.LogInformation($"  Aggregated Updated:    {result.RecordsUpdated,15:N0}");
-            _logger.LogInformation($"  Unchanged Groups:      {result.RecordsRead - result.RecordsInserted - result.RecordsUpdated,15:N0}");
-            _logger.LogInformation($"  Batch ID:              {batchId}");
-            _logger.LogInformation($"  Time Elapsed:          {totalStopwatch.ElapsedMilliseconds,15:N0}ms");
-            _logger.LogInformation("═══════════════════════════════════════════════════════════");
-            _logger.LogInformation("");
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "❌ PrEP ETL failed: {Message}", ex.Message);
-        }
-
-        return result;
+        totalStopwatch.Stop();
+        
+        _logger.LogInformation("");
+        _logger.LogInformation("═══════════════════════════════════════════════════════════");
+        _logger.LogInformation("📊 PrEP ETL FINAL SUMMARY");
+        _logger.LogInformation("═══════════════════════════════════════════════════════════");
+        _logger.LogInformation($"  Raw Records Read:      {totalRecordsRead,15:N0}");
+        _logger.LogInformation($"  Aggregated Inserted:   {inserted,15:N0}");
+        _logger.LogInformation($"  Batch ID:              {batchId}");
+        _logger.LogInformation($"  Time Elapsed:          {totalStopwatch.ElapsedMilliseconds,15:N0}ms");
+        _logger.LogInformation("═══════════════════════════════════════════════════════════");
+        _logger.LogInformation("");
+    }
+    catch (Exception ex)
+    {
+        result.Success = false;
+        result.ErrorMessage = ex.Message;
+        result.EndTime = DateTime.UtcNow;
+        _logger.LogError(ex, "❌ PrEP ETL failed: {Message}", ex.Message);
+        throw;
     }
 
-    private async Task<bool> ShouldClearExistingData()
-    {
-        var count = await _db.IndicatorValues_Prevention
-            .Where(x => x.Indicator.StartsWith("PREP_"))
-            .CountAsync();
-        return count > 0;
-    }
+    return result;
+}
 
-    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessLineListingsPrepAsync(
-        string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
+    private async Task<(int RecordsRead, List<IndicatorValuePrevention> FinalRecords)> ProcessLineListingsPrepAsync()
     {
         var recordsRead = 0;
         var allRawRecords = new List<IndicatorValuePrevention>();
-        var inserted = 0;
-        var updated = 0;
-        var skipped = 0;
+        var finalRecords = new List<IndicatorValuePrevention>();
 
         var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         var unmappedFacilities = new HashSet<string>();
@@ -136,8 +132,6 @@ public class PrEPETLService : IPrEPETLService
         
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
@@ -227,7 +221,7 @@ public class PrEPETLService : IPrEPETLService
                 });
             }
 
-            // PrEP Tested Positive (PREP_POS) - Seroconversion
+            // PrEP Tested Positive (PREP_POS)
             var positiveValue = reader.GetInt32(8);
             if (positiveValue > 0)
             {
@@ -243,22 +237,7 @@ public class PrEPETLService : IPrEPETLService
                     CreatedAt = now,
                     UpdatedAt = now
                 });
-
-                /*
-                // it's causing double-counting
-                // Add as seroconversion (only from LineListingsPrep)
-                allRawRecords.Add(new IndicatorValuePrevention
-                {
-                    Indicator = "PREP_SEROCONVERSION",
-                    RegionId = regionId,
-                    VisitDate = visitDate.Value.Date,
-                    AgeGroup = ageGroup,
-                    Sex = sex,
-                    PopulationType = populationType,
-                    Value = positiveValue,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });*/
+                // Note: PREP_SEROCONVERSION comes ONLY from aPrepDetail
             }
 
             // PrEP Initiated on ART (PREP_LINKAGE_ART)
@@ -279,16 +258,12 @@ public class PrEPETLService : IPrEPETLService
                 });
             }
 
-            // Aggregate when we reach batch size
-            if (allRawRecords.Count >= _batchSize)
+            // Periodically aggregate
+            if (allRawRecords.Count >= _batchSize * 10)
             {
                 var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                    aggregated, _db, _logger, batchId, existingRecords);
-                
-                inserted += ins;
-                updated += upd;
-                skipped += skp;
+                var batchRecords = ConvertAggregatedToEntities(aggregated);
+                finalRecords.AddRange(batchRecords);
                 allRawRecords.Clear();
             }
         }
@@ -304,29 +279,18 @@ public class PrEPETLService : IPrEPETLService
         if (allRawRecords.Any())
         {
             var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-            var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                aggregated, _db, _logger, batchId, existingRecords);
-            
-            inserted += ins;
-            updated += upd;
-            skipped += skp;
+            var batchRecords = ConvertAggregatedToEntities(aggregated);
+            finalRecords.AddRange(batchRecords);
         }
 
-        stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "LineListingsPrep", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
-
-        return (recordsRead, inserted, updated, skipped);
+        return (recordsRead, finalRecords);
     }
 
-    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessAPrepDetailAsync(
-        string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
+    private async Task<(int RecordsRead, List<IndicatorValuePrevention> FinalRecords)> ProcessAPrepDetailAsync()
     {
         var recordsRead = 0;
         var allRawRecords = new List<IndicatorValuePrevention>();
-        var inserted = 0;
-        var updated = 0;
-        var skipped = 0;
+        var finalRecords = new List<IndicatorValuePrevention>();
 
         var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         var unmappedFacilities = new HashSet<string>();
@@ -349,8 +313,6 @@ public class PrEPETLService : IPrEPETLService
         
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
@@ -392,27 +354,26 @@ public class PrEPETLService : IPrEPETLService
 
             var now = DateTime.UtcNow;
 
-            // Handle Seroconverted column - ONLY add seroconversions, not other indicators
             // Handle Seroconverted column - ONLY add from aPrepDetail (36 records)
-if (!reader.IsDBNull(5))
-{
-    var seroconverted = reader.GetString(5).Trim().ToLower();
-    if (seroconverted == "1" || seroconverted == "true" || seroconverted == "yes")
-    {
-        allRawRecords.Add(new IndicatorValuePrevention
-        {
-            Indicator = "PREP_SEROCONVERSION",  // Only add this indicator
-            RegionId = regionId,
-            VisitDate = visitDate.Value.Date,
-            AgeGroup = ageGroup,
-            Sex = sex,
-            PopulationType = populationType,
-            Value = 1,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
-    }
-}
+            if (!reader.IsDBNull(5))
+            {
+                var seroconverted = reader.GetString(5).Trim().ToLower();
+                if (seroconverted == "1" || seroconverted == "true" || seroconverted == "yes")
+                {
+                    allRawRecords.Add(new IndicatorValuePrevention
+                    {
+                        Indicator = "PREP_SEROCONVERSION",
+                        RegionId = regionId,
+                        VisitDate = visitDate.Value.Date,
+                        AgeGroup = ageGroup,
+                        Sex = sex,
+                        PopulationType = populationType,
+                        Value = 1,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+            }
 
             // Handle InitiatedOnART column (PREP_LINKAGE_ART)
             if (!reader.IsDBNull(6))
@@ -435,16 +396,12 @@ if (!reader.IsDBNull(5))
                 }
             }
 
-            // Aggregate when we reach batch size
-            if (allRawRecords.Count >= _batchSize)
+            // Periodically aggregate
+            if (allRawRecords.Count >= _batchSize * 10)
             {
                 var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                    aggregated, _db, _logger, batchId, existingRecords);
-                
-                inserted += ins;
-                updated += upd;
-                skipped += skp;
+                var batchRecords = ConvertAggregatedToEntities(aggregated);
+                finalRecords.AddRange(batchRecords);
                 allRawRecords.Clear();
             }
         }
@@ -460,18 +417,35 @@ if (!reader.IsDBNull(5))
         if (allRawRecords.Any())
         {
             var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-            var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                aggregated, _db, _logger, batchId, existingRecords);
-            
-            inserted += ins;
-            updated += upd;
-            skipped += skp;
+            var batchRecords = ConvertAggregatedToEntities(aggregated);
+            finalRecords.AddRange(batchRecords);
         }
 
-        stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "aPrepDetail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
+        return (recordsRead, finalRecords);
+    }
 
-        return (recordsRead, inserted, updated, skipped);
+    private List<IndicatorValuePrevention> ConvertAggregatedToEntities(Dictionary<string, int> aggregated)
+    {
+        var entities = new List<IndicatorValuePrevention>();
+        
+        foreach (var kvp in aggregated)
+        {
+            var parts = kvp.Key.Split('|');
+            entities.Add(new IndicatorValuePrevention
+            {
+                Indicator = parts[0],
+                RegionId = int.Parse(parts[1]),
+                VisitDate = DateTime.Parse(parts[2]),
+                AgeGroup = parts[3],
+                Sex = parts[4],
+                PopulationType = parts[5] == "NULL" ? null : parts[5],
+                Value = kvp.Value,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+        
+        return entities;
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)

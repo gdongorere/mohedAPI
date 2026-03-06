@@ -32,18 +32,12 @@ public class HTSETLService : IHTSETLService
     private const bool LogHtsDiscrepancies = true;
     
     /// <summary>
-    /// Whether to clear existing data before running ETL
-    /// </summary>
-    private const bool ClearExistingDataOnRun = true;
-    
-    /// <summary>
     /// Date filter for HTS data (set to null to process all data)
-    /// Format: new DateTime(2024, 1, 1) or null for no filter
     /// </summary>
-    private static readonly DateTime? MinProcessDate = null; // Example: new DateTime(2024, 1, 1);
+    private static readonly DateTime? MinProcessDate = null;
     
     /// <summary>
-    /// Column name mappings - Change if source column names change
+    /// Column name mappings
     /// </summary>
     private static class SourceColumns
     {
@@ -59,7 +53,7 @@ public class HTSETLService : IHTSETLService
     }
     
     /// <summary>
-    /// Indicator mappings - Change if staging indicator names need to change
+    /// Indicator mappings
     /// </summary>
     private static class Indicators
     {
@@ -70,7 +64,7 @@ public class HTSETLService : IHTSETLService
     }
     
     /// <summary>
-    /// Sex mappings - Maps source sex names to staging values
+    /// Sex mappings
     /// </summary>
     private static readonly Dictionary<string, string> SexMappings = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -112,91 +106,74 @@ public class HTSETLService : IHTSETLService
     }
 
     public async Task<ETLResult> RunAsync(string triggeredBy = "system")
+{
+    var result = new ETLResult
     {
-        var result = new ETLResult
-        {
-            JobName = "HTS ETL",
-            StartTime = DateTime.UtcNow
-        };
+        JobName = "HTS ETL",
+        StartTime = DateTime.UtcNow
+    };
 
-        var batchId = $"HTS_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
-        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+    var batchId = $"HTS_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
+    var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        try
-        {
-            _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
-            
-            // Clear existing data if configured
-            if (ClearExistingDataOnRun && triggeredBy == "system")
-            {
-                await ClearExistingDataAsync();
-            }
-            
-            // Load existing records for aggregation
-            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValuePrevention>(_db, _logger);
-            
-            var (recordsRead, inserted, updated, skipped) = await ProcessHTSTestingAsync(batchId, existingRecords);
+    try
+    {
+        _logger.LogInformation("🚀 Starting HTS ETL with batch {BatchId}", batchId);
+        
+        // Process all source data into memory FIRST
+        _logger.LogInformation("Step 1: Reading and aggregating source data...");
+        var (recordsRead, finalRecords) = await ProcessAndAggregateSourceDataAsync();
+        
+        _logger.LogInformation("Step 2: Successfully processed {RecordsRead} raw records into {FinalCount} aggregated records", 
+            recordsRead, finalRecords.Count);
+        
+        // Clear existing HTS data and insert new data
+        // Note: No transaction here - ETLService already handles the transaction
+        _logger.LogInformation("Step 3: Replacing staging data...");
+        
+        await _db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM IndicatorValues_Prevention WHERE Indicator IN ('HTS_TST', 'HTS_POS', 'HTS_NEG', 'LINKAGE_ART')");
+        
+        await _db.IndicatorValues_Prevention.AddRangeAsync(finalRecords);
+        var inserted = await _db.SaveChangesAsync();
+        
+        result.Success = true;
+        result.BatchId = batchId;
+        result.RecordsRead = recordsRead;
+        result.RecordsInserted = inserted;
+        result.RecordsUpdated = 0;
+        result.EndTime = DateTime.UtcNow;
+        
+        _logger.LogInformation("Step 4: Successfully inserted {Inserted} records into staging", inserted);
 
-            result.Success = true;
-            result.BatchId = batchId;
-            result.RecordsRead = recordsRead;
-            result.RecordsInserted = inserted;
-            result.RecordsUpdated = updated;
-            result.EndTime = DateTime.UtcNow;
-
-            totalStopwatch.Stop();
-            
-            ETLHelper.LogETLSummary(_logger, "HTS ETL", recordsRead, inserted, updated, skipped, totalStopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "❌ HTS ETL failed: {Message}", ex.Message);
-        }
-
-        return result;
+        totalStopwatch.Stop();
+        
+        _logger.LogInformation("✅ HTS ETL completed in {ElapsedMs}ms", totalStopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception ex)
+    {
+        result.Success = false;
+        result.ErrorMessage = ex.Message;
+        result.EndTime = DateTime.UtcNow;
+        _logger.LogError(ex, "❌ HTS ETL failed: {Message}", ex.Message);
+        throw;
     }
 
-    private async Task ClearExistingDataAsync()
-    {
-        try
-        {
-            var count = await _db.IndicatorValues_Prevention
-                .Where(x => x.Indicator == Indicators.Test || 
-                           x.Indicator == Indicators.Positive || 
-                           x.Indicator == Indicators.Negative || 
-                           x.Indicator == Indicators.Linkage)
-                .CountAsync();
-            
-            if (count > 0)
-            {
-                _logger.LogInformation("Clearing {Count} existing HTS records for fresh ETL", count);
-                await _db.Database.ExecuteSqlRawAsync(
-                    $"DELETE FROM IndicatorValues_Prevention WHERE Indicator IN ('{Indicators.Test}', '{Indicators.Positive}', '{Indicators.Negative}', '{Indicators.Linkage}')");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error clearing existing data, continuing with ETL");
-        }
-    }
+    return result;
+}
 
-    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessHTSTestingAsync(
-        string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
+    private async Task<(int RecordsRead, List<IndicatorValuePrevention> FinalRecords)> ProcessAndAggregateSourceDataAsync()
     {
         var recordsRead = 0;
         var allRawRecords = new List<IndicatorValuePrevention>();
-        var inserted = 0;
-        var updated = 0;
-        var skipped = 0;
-        
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var finalRecords = new List<IndicatorValuePrevention>();
 
         var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
+
+        var unmappedFacilities = new HashSet<string>();
+        var discrepancyCount = 0;
+        var totalDiscrepancy = 0;
 
         // Build query with optional date filter
         var query = $@"
@@ -219,14 +196,8 @@ public class HTSETLService : IHTSETLService
         using var command = new SqlCommand(query, connection);
         
         await connection.OpenAsync();
-        _logger.LogInformation("Connected to source database");
-        _logger.LogInformation("Executing query: {Query}", query);
         
         using var reader = await command.ExecuteReaderAsync();
-        
-        var unmappedFacilities = new HashSet<string>();
-        var discrepancyCount = 0;
-        var totalDiscrepancy = 0;
 
         while (await reader.ReadAsync())
         {
@@ -235,7 +206,6 @@ public class HTSETLService : IHTSETLService
             if (recordsRead % 10000 == 0)
                 _logger.LogInformation("Processed {Count:N0} raw HTS records", recordsRead);
 
-            // Read values with null handling
             var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0).Trim();
             if (string.IsNullOrEmpty(facilityCode))
                 continue;
@@ -254,12 +224,9 @@ public class HTSETLService : IHTSETLService
                 continue;
             }
 
-            // Map sex to staging value
             var sex = SexMappings.TryGetValue(sexName, out var mappedSex) ? mappedSex : Defaults.Sex;
-
             var now = DateTime.UtcNow;
 
-            // Get all values
             var testedValue = reader.GetInt32(5);
             var negativeValue = reader.GetInt32(6);
             var positiveValue = reader.GetInt32(7);
@@ -270,34 +237,26 @@ public class HTSETLService : IHTSETLService
             {
                 discrepancyCount++;
                 totalDiscrepancy += testedValue - (positiveValue + negativeValue);
-                _logger.LogDebug("HTS discrepancy #{Count} at {FacilityCode}/{VisitDate}: Tested={Tested}, Pos={Pos}, Neg={Neg}, Diff={Diff}",
-                    discrepancyCount, facilityCode, visitDate.Value.Date, testedValue, positiveValue, negativeValue, 
-                    testedValue - (positiveValue + negativeValue));
             }
 
-            // Add HTS_TST based on configuration
-            if (testedValue > 0)
+            // Add HTS_TST
+            if (testedValue > 0 && (AlwaysIncludeHtsTest || (positiveValue + negativeValue) == testedValue))
             {
-                bool shouldAddTest = AlwaysIncludeHtsTest || (positiveValue + negativeValue) == testedValue;
-                
-                if (shouldAddTest)
+                allRawRecords.Add(new IndicatorValuePrevention
                 {
-                    allRawRecords.Add(new IndicatorValuePrevention
-                    {
-                        Indicator = Indicators.Test,
-                        RegionId = regionId,
-                        VisitDate = visitDate.Value.Date,
-                        AgeGroup = ageGroup,
-                        Sex = sex,
-                        PopulationType = populationGroup,
-                        Value = testedValue,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
+                    Indicator = Indicators.Test,
+                    RegionId = regionId,
+                    VisitDate = visitDate.Value.Date,
+                    AgeGroup = ageGroup,
+                    Sex = sex,
+                    PopulationType = populationGroup,
+                    Value = testedValue,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
             }
 
-            // Add HTS_NEG if negative > 0
+            // Add HTS_NEG
             if (negativeValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
@@ -314,7 +273,7 @@ public class HTSETLService : IHTSETLService
                 });
             }
 
-            // Add HTS_POS if positive > 0
+            // Add HTS_POS
             if (positiveValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
@@ -331,7 +290,7 @@ public class HTSETLService : IHTSETLService
                 });
             }
 
-            // Add LINKAGE_ART if linked > 0
+            // Add LINKAGE_ART
             if (linkedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValuePrevention
@@ -348,21 +307,17 @@ public class HTSETLService : IHTSETLService
                 });
             }
 
-            // Aggregate when we reach batch size
-            if (allRawRecords.Count >= _batchSize)
+            // Periodically aggregate to manage memory
+            if (allRawRecords.Count >= _batchSize * 10)
             {
                 var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                    aggregated, _db, _logger, batchId, existingRecords);
-                
-                inserted += ins;
-                updated += upd;
-                skipped += skp;
+                var batchRecords = ConvertAggregatedToEntities(aggregated);
+                finalRecords.AddRange(batchRecords);
                 allRawRecords.Clear();
             }
         }
 
-        // Log summary of unmapped facilities
+        // Log unmapped facilities
         if (unmappedFacilities.Any())
         {
             _logger.LogWarning("Found {Count} unmapped facilities: {Facilities}", 
@@ -380,18 +335,35 @@ public class HTSETLService : IHTSETLService
         if (allRawRecords.Any())
         {
             var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-            var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValuePrevention>(
-                aggregated, _db, _logger, batchId, existingRecords);
-            
-            inserted += ins;
-            updated += upd;
-            skipped += skp;
+            var batchRecords = ConvertAggregatedToEntities(aggregated);
+            finalRecords.AddRange(batchRecords);
         }
 
-        stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "HTS Detail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
+        return (recordsRead, finalRecords);
+    }
 
-        return (recordsRead, inserted, updated, skipped);
+    private List<IndicatorValuePrevention> ConvertAggregatedToEntities(Dictionary<string, int> aggregated)
+    {
+        var entities = new List<IndicatorValuePrevention>();
+        
+        foreach (var kvp in aggregated)
+        {
+            var parts = kvp.Key.Split('|');
+            entities.Add(new IndicatorValuePrevention
+            {
+                Indicator = parts[0],
+                RegionId = int.Parse(parts[1]),
+                VisitDate = DateTime.Parse(parts[2]),
+                AgeGroup = parts[3],
+                Sex = parts[4],
+                PopulationType = parts[5] == "NULL" ? null : parts[5],
+                Value = kvp.Value,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+        
+        return entities;
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)

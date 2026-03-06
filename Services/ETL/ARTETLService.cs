@@ -30,70 +30,69 @@ public class ARTETLService : IARTETLService
         _batchSize = configuration.GetValue<int>("ETL:BatchSize", 10000);
     }
 
-    public async Task<ETLResult> RunAsync(string triggeredBy = "system")
+public async Task<ETLResult> RunAsync(string triggeredBy = "system")
+{
+    var result = new ETLResult
     {
-        var result = new ETLResult
-        {
-            JobName = "ART ETL",
-            StartTime = DateTime.UtcNow
-        };
+        JobName = "ART ETL",
+        StartTime = DateTime.UtcNow
+    };
 
-        var batchId = $"ART_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
-        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+    var batchId = $"ART_{DateTime.UtcNow:yyyyMMdd_HHmmss}_UTC";
+    var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        try
-        {
-            _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
-            
-            // Clear existing data if this is a fresh run
-            if (triggeredBy == "system" && await ShouldClearExistingData())
-            {
-                _logger.LogInformation("Clearing existing ART data for fresh ETL");
-                await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_HIV");
-            }
-            
-            // Load existing records for aggregation
-            var existingRecords = await ETLHelper.LoadAllExistingRecordsAsync<IndicatorValueHIV>(_db, _logger);
+    try
+    {
+        _logger.LogInformation("🚀 Starting ART ETL with batch {BatchId}", batchId);
+        
+        // Process all source data into memory FIRST
+        _logger.LogInformation("Step 1: Reading and aggregating source data...");
+        var (recordsRead, finalRecords) = await ProcessAndAggregateSourceDataAsync();
+        
+        _logger.LogInformation("Step 2: Successfully processed {RecordsRead} raw records into {FinalCount} aggregated records", 
+            recordsRead, finalRecords.Count);
+        
+        // STEP 2: Clear existing data and insert new data
+        // Note: No transaction here - ETLService already handles the transaction
+        _logger.LogInformation("Step 3: Replacing staging data...");
+        
+        // Clear existing data
+        await _db.Database.ExecuteSqlRawAsync("DELETE FROM IndicatorValues_HIV");
+        
+        // Insert new data
+        await _db.IndicatorValues_HIV.AddRangeAsync(finalRecords);
+        var inserted = await _db.SaveChangesAsync();
+        
+        result.Success = true;
+        result.BatchId = batchId;
+        result.RecordsRead = recordsRead;
+        result.RecordsInserted = inserted;
+        result.RecordsUpdated = 0;
+        result.EndTime = DateTime.UtcNow;
+        
+        _logger.LogInformation("Step 4: Successfully inserted {Inserted} records into staging", inserted);
 
-            var (recordsRead, inserted, updated, skipped) = await ProcessARTOutcomesAsync(batchId, existingRecords);
-
-            result.Success = true;
-            result.BatchId = batchId;
-            result.RecordsRead = recordsRead;
-            result.RecordsInserted = inserted;
-            result.RecordsUpdated = updated;
-            result.EndTime = DateTime.UtcNow;
-
-            totalStopwatch.Stop();
-            
-            ETLHelper.LogETLSummary(_logger, "ART ETL", recordsRead, inserted, updated, skipped, totalStopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "❌ ART ETL failed: {Message}", ex.Message);
-        }
-
-        return result;
+        totalStopwatch.Stop();
+        
+        _logger.LogInformation("✅ ART ETL completed in {ElapsedMs}ms", totalStopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception ex)
+    {
+        result.Success = false;
+        result.ErrorMessage = ex.Message;
+        result.EndTime = DateTime.UtcNow;
+        _logger.LogError(ex, "❌ ART ETL failed: {Message}", ex.Message);
+        throw; // Re-throw to let ETLService handle rollback
     }
 
-    private async Task<bool> ShouldClearExistingData()
-    {
-        var count = await _db.IndicatorValues_HIV.CountAsync();
-        return count > 0;
-    }
+    return result;
+}
 
-    private async Task<(int RecordsRead, int Inserted, int Updated, int Skipped)> ProcessARTOutcomesAsync(
-        string batchId, 
-        Dictionary<string, (DateTime UpdatedAt, int Id, int Value)> existingRecords)
+    private async Task<(int RecordsRead, List<IndicatorValueHIV> FinalRecords)> ProcessAndAggregateSourceDataAsync()
     {
         var recordsRead = 0;
         var allRawRecords = new List<IndicatorValueHIV>();
-        var inserted = 0;
-        var updated = 0;
-        var skipped = 0;
+        var finalRecords = new List<IndicatorValueHIV>();
 
         var facilityRegions = await _facilityRegionService.GetFacilityRegionsAsync();
         _logger.LogInformation("Found {Count} facility-region mappings", facilityRegions.Count);
@@ -122,8 +121,6 @@ public class ARTETLService : IARTETLService
         
         using var reader = await command.ExecuteReaderAsync();
         _logger.LogInformation("Executed query, starting to read records");
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (await reader.ReadAsync())
         {
@@ -230,16 +227,12 @@ public class ARTETLService : IARTETLService
                 });
             }
 
-            // Aggregate when we reach batch size
-            if (allRawRecords.Count >= _batchSize)
+            // Periodically aggregate to manage memory
+            if (allRawRecords.Count >= _batchSize * 10) // Aggregate every 10x batch size
             {
                 var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-                var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValueHIV>(
-                    aggregated, _db, _logger, batchId, existingRecords);
-                
-                inserted += ins;
-                updated += upd;
-                skipped += skp;
+                var batchRecords = ConvertAggregatedToEntities(aggregated);
+                finalRecords.AddRange(batchRecords);
                 allRawRecords.Clear();
             }
         }
@@ -255,18 +248,35 @@ public class ARTETLService : IARTETLService
         if (allRawRecords.Any())
         {
             var aggregated = ETLHelper.AggregateRecords(allRawRecords);
-            var (ins, upd, skp) = await ETLHelper.UpsertAggregatedRecordsAsync<IndicatorValueHIV>(
-                aggregated, _db, _logger, batchId, existingRecords);
-            
-            inserted += ins;
-            updated += upd;
-            skipped += skp;
+            var batchRecords = ConvertAggregatedToEntities(aggregated);
+            finalRecords.AddRange(batchRecords);
         }
 
-        stopwatch.Stop();
-        ETLHelper.LogETLSummary(_logger, "ART Detail", recordsRead, inserted, updated, skipped, stopwatch.ElapsedMilliseconds);
+        return (recordsRead, finalRecords);
+    }
 
-        return (recordsRead, inserted, updated, skipped);
+    private List<IndicatorValueHIV> ConvertAggregatedToEntities(Dictionary<string, int> aggregated)
+    {
+        var entities = new List<IndicatorValueHIV>();
+        
+        foreach (var kvp in aggregated)
+        {
+            var parts = kvp.Key.Split('|');
+            entities.Add(new IndicatorValueHIV
+            {
+                Indicator = parts[0],
+                RegionId = int.Parse(parts[1]),
+                VisitDate = DateTime.Parse(parts[2]),
+                AgeGroup = parts[3],
+                Sex = parts[4],
+                PopulationType = parts[5] == "NULL" ? null : parts[5],
+                Value = kvp.Value,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        }
+        
+        return entities;
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)
