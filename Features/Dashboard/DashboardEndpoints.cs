@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Eswatini.Health.Api.Services.Indicators;
-using Eswatini.Health.Api.Services.Targets;
 using Eswatini.Health.Api.Services.Period;
-using Eswatini.Health.Api.Models.DTOs.Dashboard;
-using Eswatini.Health.Api.Models.DTOs.Indicators;
+using Eswatini.Health.Api.Common.Helpers;
 
 namespace Eswatini.Health.Api.Features.Dashboard;
 
@@ -13,100 +11,57 @@ public static class DashboardEndpoints
     {
         var group = app.MapGroup("/dashboard");
 
-        group.MapGet("/summary", GetDashboardSummary)
-            .WithName("GetDashboardSummary")
+        group.MapGet("/", GetDashboard)
+            .WithName("GetDashboard")
             .WithOpenApi();
 
-        group.MapGet("/hiv", GetHIVDashboard)
-            .WithName("GetHIVDashboard")
+        group.MapGet("/detailed", GetDetailedDashboard)
+            .WithName("GetDetailedDashboard")
             .WithOpenApi();
 
-        group.MapGet("/prevention", GetPreventionDashboard)
-            .WithName("GetPreventionDashboard")
+        group.MapGet("/regions", GetRegionalDashboard)
+            .WithName("GetRegionalDashboard")
             .WithOpenApi();
 
         return app;
     }
 
-    private static async Task<IResult> GetDashboardSummary(
+    private static async Task<IResult> GetDashboard(
         [FromServices] IHIVIndicatorService hivService,
-        [FromServices] IPreventionIndicatorService preventionService,
-        [FromServices] ITargetService targetService,
         [FromServices] IPeriodService periodService,
-        [FromQuery] DateTime? asOfDate = null)
+        [FromQuery] string? period = null)
     {
         try
         {
-            var date = asOfDate ?? DateTime.UtcNow;
-            var targets = await targetService.GetTargetsForDashboardAsync(date);
+            var targetPeriod = period ?? await periodService.GetLatestAvailablePeriodAsync();
 
-            // Get HIV metrics
-            var totalOnArt = await hivService.GetTotalOnArtAsync(date);
-            var (vlTested, vlSuppressed) = await hivService.GetViralLoadOutcomesAsync(date);
-            
-            // Get Prevention metrics
-            var monthStart = new DateTime(date.Year, date.Month, 1);
-            var hivTests = await preventionService.GetHIVTestsAsync(monthStart, date);
-            var hivPositives = await preventionService.GetHIVPositivesAsync(monthStart, date);
-            var prepInitiations = await preventionService.GetPrEPInitiationsAsync(monthStart, date);
-
-            var metrics = new List<MetricDto>
+            if (!periodService.IsValidPeriod(targetPeriod))
             {
-                new() {
-                    Indicator = "TX_CURR",
-                    Name = "Currently on ART",
-                    Value = totalOnArt,
-                    Target = targets.GetValueOrDefault($"TX_CURR_0_{date.Year}__"),
-                    Unit = "number",
-                    Trend = "stable"
-                },
-                new() {
-                    Indicator = "VL_SUPPRESSION",
-                    Name = "Viral Load Suppression Rate",
-                    Value = vlTested > 0 ? Math.Round((decimal)vlSuppressed / vlTested * 100, 1) : 0,
-                    Unit = "percentage",
-                    Trend = "stable"
-                },
-                new() {
-                    Indicator = "HTS_TST",
-                    Name = "HIV Tests (MTD)",
-                    Value = hivTests,
-                    Unit = "number",
-                    Trend = "stable"
-                },
-                new() {
-                    Indicator = "HTS_POS",
-                    Name = "HIV Positives (MTD)",
-                    Value = hivPositives,
-                    Unit = "number",
-                    Trend = "stable"
-                },
-                new() {
-                    Indicator = "PREP_NEW",
-                    Name = "PrEP Initiations (MTD)",
-                    Value = prepInitiations,
-                    Unit = "number",
-                    Trend = "stable"
-                }
-            };
-
-            // Calculate percentages of target
-            foreach (var metric in metrics.Where(m => m.Target.HasValue && m.Target.Value > 0))
-            {
-                metric.PercentageOfTarget = Math.Round(metric.Value / metric.Target!.Value * 100, 1);
+                return Results.BadRequest(new
+                {
+                    success = false,
+                    message = "Invalid period format. Use format: YYYYQX (e.g., 2025Q3)"
+                });
             }
 
-            var dashboard = new DashboardSummaryDto
+            if (!await hivService.HasDataForPeriodAsync(targetPeriod))
             {
-                AsOfDate = date,
-                Metrics = metrics,
-                LastUpdated = DateTime.UtcNow
-            };
+                return Results.Ok(new
+                {
+                    success = true,
+                    timestamp = DateTime.UtcNow,
+                    message = $"No data available for period {targetPeriod}",
+                    data = new { }
+                });
+            }
+
+            var dashboardData = await hivService.GetDashboardSummaryAsync(targetPeriod);
 
             return Results.Ok(new
             {
                 success = true,
-                data = dashboard
+                timestamp = DateTime.UtcNow,
+                data = dashboardData
             });
         }
         catch (Exception ex)
@@ -115,76 +70,42 @@ public static class DashboardEndpoints
         }
     }
 
-    private static async Task<IResult> GetHIVDashboard(
+    private static async Task<IResult> GetDetailedDashboard(
         [FromServices] IHIVIndicatorService hivService,
         [FromServices] IPeriodService periodService,
-        [FromQuery] DateTime? asOfDate = null)
+        [FromQuery] string? period = null)
     {
         try
         {
-            var date = asOfDate ?? DateTime.UtcNow;
+            var targetPeriod = period ?? await periodService.GetLatestAvailablePeriodAsync();
 
-            // Get total on ART
-            var totalOnArt = await hivService.GetTotalOnArtAsync(date);
-            
-            // Get viral load outcomes
-            var (vlTested, vlSuppressed) = await hivService.GetViralLoadOutcomesAsync(date);
-            
-            // Get breakdowns
-            var bySex = await hivService.GetBreakdownBySexAsync("TX_CURR", date);
-            var byAgeGroup = await hivService.GetBreakdownByAgeGroupAsync("TX_CURR", date);
-
-            // Create charts
-            var sexChart = new ChartDataDto
+            if (!periodService.IsValidPeriod(targetPeriod))
             {
-                Title = "Clients on ART by Sex",
-                ChartType = "pie",
-                Labels = bySex.Keys.ToList(),
-                Datasets = new List<ChartDatasetDto>
+                return Results.BadRequest(new
                 {
-                    new()
-                    {
-                        Label = "On ART",
-                        Data = bySex.Values.Select(v => (decimal)v).ToList(),
-                        BackgroundColor = "#4CAF50"
-                    }
-                }
-            };
+                    success = false,
+                    message = "Invalid period format. Use format: YYYYQX (e.g., 2025Q3)"
+                });
+            }
 
-            var ageChart = new ChartDataDto
+            if (!await hivService.HasDataForPeriodAsync(targetPeriod))
             {
-                Title = "Clients on ART by Age Group",
-                ChartType = "bar",
-                Labels = byAgeGroup.Keys.ToList(),
-                Datasets = new List<ChartDatasetDto>
+                return Results.Ok(new
                 {
-                    new()
-                    {
-                        Label = "On ART",
-                        Data = byAgeGroup.Values.Select(v => (decimal)v).ToList(),
-                        BorderColor = "#2196F3"
-                    }
-                }
-            };
+                    success = true,
+                    timestamp = DateTime.UtcNow,
+                    message = $"No data available for period {targetPeriod}",
+                    data = new { }
+                });
+            }
 
-            var dashboard = new
-            {
-                AsOfDate = date,
-                Summary = new
-                {
-                    TotalOnArt = totalOnArt,
-                    ViralLoadTested = vlTested,
-                    ViralLoadSuppressed = vlSuppressed,
-                    SuppressionRate = vlTested > 0 ? Math.Round((decimal)vlSuppressed / vlTested * 100, 1) : 0
-                },
-                Charts = new[] { sexChart, ageChart },
-                LastUpdated = DateTime.UtcNow
-            };
+            var detailedData = await hivService.GetDetailedDashboardAsync(targetPeriod);
 
             return Results.Ok(new
             {
                 success = true,
-                data = dashboard
+                timestamp = DateTime.UtcNow,
+                data = detailedData
             });
         }
         catch (Exception ex)
@@ -193,42 +114,33 @@ public static class DashboardEndpoints
         }
     }
 
-    private static async Task<IResult> GetPreventionDashboard(
-        [FromServices] IPreventionIndicatorService preventionService,
+    private static async Task<IResult> GetRegionalDashboard(
+        [FromServices] IHIVIndicatorService hivService,
         [FromServices] IPeriodService periodService,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null)
+        [FromQuery] string? period = null)
     {
         try
         {
-            var end = endDate ?? DateTime.UtcNow;
-            var start = startDate ?? new DateTime(end.Year, end.Month, 1);
+            var targetPeriod = period ?? await periodService.GetLatestAvailablePeriodAsync();
 
-            // Get metrics
-            var hivTests = await preventionService.GetHIVTestsAsync(start, end);
-            var hivPositives = await preventionService.GetHIVPositivesAsync(start, end);
-            var prepInitiations = await preventionService.GetPrEPInitiationsAsync(start, end);
-            var seroconversions = await preventionService.GetPrEPSeroconversionsAsync(start, end);
-
-            var dashboard = new
+            if (!periodService.IsValidPeriod(targetPeriod))
             {
-                Period = $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}",
-                Summary = new
+                return Results.BadRequest(new
                 {
-                    HIVTests = hivTests,
-                    HIVPositives = hivPositives,
-                    PositivityRate = hivTests > 0 ? Math.Round((decimal)hivPositives / hivTests * 100, 1) : 0,
-                    PrEPInitiations = prepInitiations,
-                    Seroconversions = seroconversions,
-                    SeroconversionRate = prepInitiations > 0 ? Math.Round((decimal)seroconversions / prepInitiations * 100, 2) : 0
-                },
-                LastUpdated = DateTime.UtcNow
-            };
+                    success = false,
+                    message = "Invalid period format. Use format: YYYYQX (e.g., 2025Q3)"
+                });
+            }
+
+            var regionalData = await hivService.GetBreakdownByRegionAsync(targetPeriod);
 
             return Results.Ok(new
             {
                 success = true,
-                data = dashboard
+                timestamp = DateTime.UtcNow,
+                period = targetPeriod,
+                count = regionalData.Count,
+                data = regionalData
             });
         }
         catch (Exception ex)

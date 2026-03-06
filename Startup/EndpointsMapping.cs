@@ -25,12 +25,12 @@ public static class EndpointMappings
         .AllowAnonymous();
 
         // Auth endpoints (public for login/register)
-        app.MapAuthEndpoints();
+        app.MapGroup("")
+           .MapAuthEndpoints();
 
         // ETL endpoints (API key protected, no JWT required)
         app.MapGroup("/api/etl")
            .MapETLEndpoints();
-
 
         // Protected endpoints
         var protectedGroup = app.MapGroup("/api")

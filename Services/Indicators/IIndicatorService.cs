@@ -1,4 +1,5 @@
 using Eswatini.Health.Api.Models.DTOs.Indicators;
+using Eswatini.Health.Api.Models.DTOs.Dashboard;
 
 namespace Eswatini.Health.Api.Services.Indicators;
 
@@ -13,11 +14,20 @@ public interface IIndicatorService
 // HIV Specific
 public interface IHIVIndicatorService : IIndicatorService
 {
+    // Existing methods
     Task<int> GetTotalOnArtAsync(DateTime date, int? regionId = null);
     Task<int> GetNewOnArtAsync(DateTime startDate, DateTime endDate, int? regionId = null);
     Task<(int Tested, int Suppressed)> GetViralLoadOutcomesAsync(DateTime date, int? regionId = null);
     Task<Dictionary<string, int>> GetBreakdownBySexAsync(string indicator, DateTime date, int? regionId = null);
     Task<Dictionary<string, int>> GetBreakdownByAgeGroupAsync(string indicator, DateTime date, int? regionId = null);
+    
+    // New methods for quarterly period dashboard
+    Task<DashboardSummaryDto> GetDashboardSummaryAsync(string period);
+    Task<DetailedDashboardDto> GetDetailedDashboardAsync(string period);
+    Task<List<RegionalBreakdownDto>> GetBreakdownByRegionAsync(string period);
+    Task<List<SexBasedBreakdownDto>> GetBreakdownBySexAsync(string period, string? regionCode = null);
+    Task<List<AgeGroupBreakdownDto>> GetBreakdownByAgeGroupAsync(string period, string? regionCode = null);
+    Task<decimal> GetIndicatorValueAsync(string indicatorCode, string period, string? regionCode = null, string? ageGroup = null, string? sex = null);
 }
 
 // Prevention Specific

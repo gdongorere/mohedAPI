@@ -1,66 +1,85 @@
 namespace Eswatini.Health.Api.Models.DTOs.Dashboard;
 
+// Main Dashboard Summary
 public class DashboardSummaryDto
 {
-    public DateTime AsOfDate { get; set; }
-    public List<MetricDto> Metrics { get; set; } = new();
-    public List<ChartDataDto> Charts { get; set; } = new();
+    public string Period { get; set; } = string.Empty;
+    public DateTime ReportingDate { get; set; }
+    public DashboardMetricsDto Summary { get; set; } = new();
     public DateTime LastUpdated { get; set; }
+    public string BatchId { get; set; } = string.Empty;
 }
 
-public class MetricDto
+public class DashboardMetricsDto
 {
-    public string Indicator { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public decimal Value { get; set; }
-    public decimal? Target { get; set; }
-    public decimal? PercentageOfTarget { get; set; }
-    public string Unit { get; set; } = string.Empty;
-    public string Trend { get; set; } = "stable"; // up, down, stable
-    public decimal? PreviousValue { get; set; }
-    public decimal? PercentChange { get; set; }
+    public int TotalOnArt { get; set; }
+    public int VlTested { get; set; }
+    public int VlSuppressed { get; set; }
+    public int VlUnsuppressed { get; set; }
+    public int VlUndetectable { get; set; }
+    public decimal VlSuppressionRate { get; set; }
+    public decimal VlCoverageRate { get; set; }
+    public decimal VlUndetectableRate { get; set; }
+    public decimal UnsuppressedRate { get; set; }
 }
 
-public class ChartDataDto
+// Detailed Dashboard
+public class DetailedDashboardDto
 {
-    public string Title { get; set; } = string.Empty;
-    public string ChartType { get; set; } = "line"; // line, bar, pie
-    public List<string> Labels { get; set; } = new();
-    public List<ChartDatasetDto> Datasets { get; set; } = new();
+    public string Period { get; set; } = string.Empty;
+    public DateTime ReportingDate { get; set; }
+    public SummaryMetricsDto Summary { get; set; } = new();
+    public List<SexBasedBreakdownDto> BySex { get; set; } = new();
+    public List<AgeGroupBreakdownDto> ByAgeGroup { get; set; } = new();
+    public List<RegionalBreakdownDto> ByRegion { get; set; } = new();
+    public DateTime LastUpdated { get; set; }
+    public string BatchId { get; set; } = string.Empty;
 }
 
-public class ChartDatasetDto
+public class SummaryMetricsDto
 {
-    public string Label { get; set; } = string.Empty;
-    public List<decimal> Data { get; set; } = new();
-    public string BorderColor { get; set; } = string.Empty;
-    public string BackgroundColor { get; set; } = string.Empty;
+    public int TotalOnArt { get; set; }
+    public int VlTested { get; set; }
+    public int VlSuppressed { get; set; }
+    public int VlUnsuppressed { get; set; }
+    public int VlUndetectable { get; set; }
+    public decimal SuppressionRate { get; set; }
+    public decimal CoverageRate { get; set; }
+    public decimal UnsuppressedRate { get; set; }
+    public decimal UndetectableRate { get; set; }
 }
 
-public class BreakdownDto<T>
-{
-    public string Dimension { get; set; } = string.Empty;
-    public List<T> Items { get; set; } = new();
-}
-
-public class SexBreakdownDto
+// Breakdown DTOs
+public class SexBasedBreakdownDto
 {
     public string Sex { get; set; } = string.Empty;
-    public int Total { get; set; }
-    public decimal Percentage { get; set; }
+    public int OnArt { get; set; }
+    public int Tested { get; set; }
+    public int Suppressed { get; set; }
+    public int Unsuppressed { get; set; }
+    public decimal SuppressionRate { get; set; }
+    public decimal TestCoverage { get; set; }
 }
 
 public class AgeGroupBreakdownDto
 {
     public string AgeGroup { get; set; } = string.Empty;
-    public int Total { get; set; }
-    public decimal Percentage { get; set; }
+    public string AgeGroupCode { get; set; } = string.Empty;
+    public int OnArt { get; set; }
+    public int Tested { get; set; }
+    public int Suppressed { get; set; }
+    public int Unsuppressed { get; set; }
+    public decimal SuppressionRate { get; set; }
+    public decimal TestCoverage { get; set; }
 }
 
 public class RegionalBreakdownDto
 {
-    public int RegionId { get; set; }
+    public string RegionCode { get; set; } = string.Empty;
     public string RegionName { get; set; } = string.Empty;
-    public int Total { get; set; }
-    public decimal Percentage { get; set; }
+    public int OnArt { get; set; }
+    public int Tested { get; set; }
+    public int Suppressed { get; set; }
+    public decimal SuppressionRate { get; set; }
+    public decimal TestCoverage { get; set; }
 }

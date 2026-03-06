@@ -3,6 +3,8 @@ using Eswatini.Health.Api.Data;
 using Eswatini.Health.Api.Models.DTOs.Indicators;
 using Eswatini.Health.Api.Models.Staging;
 using Eswatini.Health.Api.Services.Period;
+using Eswatini.Health.Api.Models.DTOs.Dashboard;
+using Eswatini.Health.Api.Common.Helpers;
 
 namespace Eswatini.Health.Api.Services.Indicators;
 
@@ -121,10 +123,44 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
     {
         try
         {
-            var dateRange = _periodService.GetDateRangeForPeriod(period);
+            // Parse the quarter period (e.g., "2025Q4" -> Q4 2025)
+            var year = int.Parse(period.Substring(0, 4));
+            var quarter = int.Parse(period.Substring(5, 1));
             
-            return await _db.IndicatorValues_HIV
-                .AnyAsync(x => x.VisitDate >= dateRange.StartDate && x.VisitDate <= dateRange.EndDate);
+            // Calculate the quarter date range
+            DateTime startDate, endDate;
+            switch (quarter)
+            {
+                case 1:
+                    startDate = new DateTime(year, 1, 1);
+                    endDate = new DateTime(year, 3, 31);
+                    break;
+                case 2:
+                    startDate = new DateTime(year, 4, 1);
+                    endDate = new DateTime(year, 6, 30);
+                    break;
+                case 3:
+                    startDate = new DateTime(year, 7, 1);
+                    endDate = new DateTime(year, 9, 30);
+                    break;
+                case 4:
+                    startDate = new DateTime(year, 10, 1);
+                    endDate = new DateTime(year, 12, 31);
+                    break;
+                default:
+                    return false;
+            }
+            
+            _logger.LogDebug("Checking for data in period {Period} from {StartDate} to {EndDate}", 
+                period, startDate, endDate);
+            
+            // Check if there's ANY data in this date range
+            var hasData = await _db.IndicatorValues_HIV
+                .AnyAsync(x => x.VisitDate >= startDate && x.VisitDate <= endDate);
+            
+            _logger.LogDebug("HasDataForPeriodAsync for {Period}: {HasData}", period, hasData);
+            
+            return hasData;
         }
         catch (Exception ex)
         {
@@ -255,6 +291,482 @@ public class HIVIndicatorService : IndicatorServiceBase, IHIVIndicatorService
             return new Dictionary<string, int>();
         }
     }
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Add these methods to the existing HIVIndicatorService class
+
+public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(string period)
+{
+    try
+    {
+        var periodDate = PeriodHelper.ConvertToReportingDate(period);
+        
+        // National level, all ages, both sexes
+        var txCurr = await GetIndicatorValueAsync("TX_CURR", period);
+        var vlTested = await GetIndicatorValueAsync("TX_VL_TESTED", period);
+        var vlSuppressed = await GetIndicatorValueAsync("TX_VL_SUPPRESSED", period);
+        var vlUndetectable = await GetIndicatorValueAsync("TX_VL_UNDETECTABLE", period);
+        
+        var suppressionRate = vlTested > 0 
+            ? Math.Round((vlSuppressed / vlTested) * 100, 1) 
+            : 0;
+        
+        var coverageRate = txCurr > 0 
+            ? Math.Round((vlTested / txCurr) * 100, 1) 
+            : 0;
+        
+        var undetectableRate = vlTested > 0 
+            ? Math.Round((vlUndetectable / vlTested) * 100, 1) 
+            : 0;
+        
+        var unsuppressedRate = 100 - suppressionRate;
+
+        return new DashboardSummaryDto
+        {
+            Period = period,
+            ReportingDate = periodDate,
+            LastUpdated = DateTime.UtcNow,
+            BatchId = "LATEST",
+            Summary = new DashboardMetricsDto
+            {
+                TotalOnArt = (int)txCurr,
+                VlTested = (int)vlTested,
+                VlSuppressed = (int)vlSuppressed,
+                VlUnsuppressed = (int)(vlTested - vlSuppressed),
+                VlUndetectable = (int)vlUndetectable,
+                VlSuppressionRate = suppressionRate,
+                VlCoverageRate = coverageRate,
+                VlUndetectableRate = undetectableRate,
+                UnsuppressedRate = unsuppressedRate
+            }
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting dashboard summary for period {Period}", period);
+        throw;
+    }
+}
+
+public async Task<DetailedDashboardDto> GetDetailedDashboardAsync(string period)
+{
+    try
+    {
+        var periodDate = PeriodHelper.ConvertToReportingDate(period);
+        
+        var summary = await GetDashboardSummaryAsync(period);
+        var bySex = await GetBreakdownBySexAsync(period);
+        var byAgeGroup = await GetBreakdownByAgeGroupAsync(period);
+        var byRegion = await GetBreakdownByRegionAsync(period);
+
+        return new DetailedDashboardDto
+        {
+            Period = period,
+            ReportingDate = periodDate,
+            LastUpdated = summary.LastUpdated,
+            BatchId = summary.BatchId,
+            Summary = new SummaryMetricsDto
+            {
+                TotalOnArt = summary.Summary.TotalOnArt,
+                VlTested = summary.Summary.VlTested,
+                VlSuppressed = summary.Summary.VlSuppressed,
+                VlUnsuppressed = summary.Summary.VlUnsuppressed,
+                VlUndetectable = summary.Summary.VlUndetectable,
+                SuppressionRate = summary.Summary.VlSuppressionRate,
+                CoverageRate = summary.Summary.VlCoverageRate,
+                UnsuppressedRate = summary.Summary.UnsuppressedRate,
+                UndetectableRate = summary.Summary.VlUndetectableRate
+            },
+            BySex = bySex,
+            ByAgeGroup = byAgeGroup,
+            ByRegion = byRegion
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting detailed dashboard for period {Period}", period);
+        throw;
+    }
+}
+
+public async Task<List<RegionalBreakdownDto>> GetBreakdownByRegionAsync(string period)
+{
+    try
+    {
+        // Parse the quarter period
+        var year = int.Parse(period.Substring(0, 4));
+        var quarter = int.Parse(period.Substring(5, 1));
+        
+        // Calculate the quarter date range
+        DateTime startDate, endDate;
+        switch (quarter)
+        {
+            case 1:
+                startDate = new DateTime(year, 1, 1);
+                endDate = new DateTime(year, 3, 31);
+                break;
+            case 2:
+                startDate = new DateTime(year, 4, 1);
+                endDate = new DateTime(year, 6, 30);
+                break;
+            case 3:
+                startDate = new DateTime(year, 7, 1);
+                endDate = new DateTime(year, 9, 30);
+                break;
+            case 4:
+                startDate = new DateTime(year, 10, 1);
+                endDate = new DateTime(year, 12, 31);
+                break;
+            default:
+                return new List<RegionalBreakdownDto>();
+        }
+        
+        var query = _db.IndicatorValues_HIV
+            .Where(iv => iv.VisitDate >= startDate && iv.VisitDate <= endDate);
+
+        var results = await query
+            .Where(iv => iv.Indicator == "TX_CURR" 
+                || iv.Indicator == "TX_VL_TESTED" 
+                || iv.Indicator == "TX_VL_SUPPRESSED")
+            .GroupBy(iv => iv.RegionId)
+            .Select(g => new
+            {
+                RegionId = g.Key,
+                OnArt = g.Where(iv => iv.Indicator == "TX_CURR").Sum(iv => (int?)iv.Value) ?? 0,
+                Tested = g.Where(iv => iv.Indicator == "TX_VL_TESTED").Sum(iv => (int?)iv.Value) ?? 0,
+                Suppressed = g.Where(iv => iv.Indicator == "TX_VL_SUPPRESSED").Sum(iv => (int?)iv.Value) ?? 0
+            })
+            .ToListAsync();
+
+        return results.Select(r => new RegionalBreakdownDto
+        {
+            RegionCode = GetRegionCode(r.RegionId),
+            RegionName = GetRegionName(r.RegionId),
+            OnArt = r.OnArt,
+            Tested = r.Tested,
+            Suppressed = r.Suppressed,
+            SuppressionRate = r.Tested > 0 
+                ? Math.Round((decimal)r.Suppressed / r.Tested * 100, 1) 
+                : 0,
+            TestCoverage = r.OnArt > 0 
+                ? Math.Round((decimal)r.Tested / r.OnArt * 100, 1) 
+                : 0
+        }).ToList();
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting breakdown by region for period {Period}", period);
+        return new List<RegionalBreakdownDto>();
+    }
+}
+
+public async Task<List<SexBasedBreakdownDto>> GetBreakdownBySexAsync(string period, string? regionCode = null)
+{
+    try
+    {
+        // Parse the quarter period
+        var year = int.Parse(period.Substring(0, 4));
+        var quarter = int.Parse(period.Substring(5, 1));
+        
+        // Calculate the quarter date range
+        DateTime startDate, endDate;
+        switch (quarter)
+        {
+            case 1:
+                startDate = new DateTime(year, 1, 1);
+                endDate = new DateTime(year, 3, 31);
+                break;
+            case 2:
+                startDate = new DateTime(year, 4, 1);
+                endDate = new DateTime(year, 6, 30);
+                break;
+            case 3:
+                startDate = new DateTime(year, 7, 1);
+                endDate = new DateTime(year, 9, 30);
+                break;
+            case 4:
+                startDate = new DateTime(year, 10, 1);
+                endDate = new DateTime(year, 12, 31);
+                break;
+            default:
+                _logger.LogWarning("Invalid quarter: {Quarter} for period {Period}", quarter, period);
+                return new List<SexBasedBreakdownDto>();
+        }
+        
+        _logger.LogDebug("GetBreakdownBySexAsync for period {Period} from {StartDate} to {EndDate}", 
+            period, startDate, endDate);
+        
+        var query = _db.IndicatorValues_HIV
+            .Where(iv => iv.VisitDate >= startDate 
+                      && iv.VisitDate <= endDate
+                      && iv.Sex != null);
+
+        if (!string.IsNullOrEmpty(regionCode))
+        {
+            var regionId = GetRegionId(regionCode);
+            query = query.Where(iv => iv.RegionId == regionId);
+            _logger.LogDebug("Filtering by region: {RegionCode} -> RegionId: {RegionId}", regionCode, regionId);
+        }
+
+        var results = await query
+            .Where(iv => iv.Indicator == "TX_CURR" 
+                || iv.Indicator == "TX_VL_TESTED" 
+                || iv.Indicator == "TX_VL_SUPPRESSED")
+            .GroupBy(iv => iv.Sex)
+            .Select(g => new
+            {
+                Sex = g.Key,
+                OnArt = g.Where(iv => iv.Indicator == "TX_CURR").Sum(iv => (int?)iv.Value) ?? 0,
+                Tested = g.Where(iv => iv.Indicator == "TX_VL_TESTED").Sum(iv => (int?)iv.Value) ?? 0,
+                Suppressed = g.Where(iv => iv.Indicator == "TX_VL_SUPPRESSED").Sum(iv => (int?)iv.Value) ?? 0
+            })
+            .ToListAsync();
+
+        _logger.LogDebug("Found {Count} sex breakdown results for period {Period}", results.Count, period);
+
+        return results.Select(r => new SexBasedBreakdownDto
+        {
+            Sex = r.Sex == "M" ? "Male" : r.Sex == "F" ? "Female" : "Unknown",
+            OnArt = r.OnArt,
+            Tested = r.Tested,
+            Suppressed = r.Suppressed,
+            Unsuppressed = r.Tested - r.Suppressed,
+            SuppressionRate = r.Tested > 0 
+                ? Math.Round((decimal)r.Suppressed / r.Tested * 100, 1) 
+                : 0,
+            TestCoverage = r.OnArt > 0 
+                ? Math.Round((decimal)r.Tested / r.OnArt * 100, 1) 
+                : 0
+        }).ToList();
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting breakdown by sex for period {Period}", period);
+        return new List<SexBasedBreakdownDto>();
+    }
+}
+
+public async Task<List<AgeGroupBreakdownDto>> GetBreakdownByAgeGroupAsync(string period, string? regionCode = null)
+{
+    try
+    {
+        // Parse the quarter period
+        var year = int.Parse(period.Substring(0, 4));
+        var quarter = int.Parse(period.Substring(5, 1));
+        
+        // Calculate the quarter date range
+        DateTime startDate, endDate;
+        switch (quarter)
+        {
+            case 1:
+                startDate = new DateTime(year, 1, 1);
+                endDate = new DateTime(year, 3, 31);
+                break;
+            case 2:
+                startDate = new DateTime(year, 4, 1);
+                endDate = new DateTime(year, 6, 30);
+                break;
+            case 3:
+                startDate = new DateTime(year, 7, 1);
+                endDate = new DateTime(year, 9, 30);
+                break;
+            case 4:
+                startDate = new DateTime(year, 10, 1);
+                endDate = new DateTime(year, 12, 31);
+                break;
+            default:
+                _logger.LogWarning("Invalid quarter: {Quarter} for period {Period}", quarter, period);
+                return new List<AgeGroupBreakdownDto>();
+        }
+        
+        _logger.LogDebug("GetBreakdownByAgeGroupAsync for period {Period} from {StartDate} to {EndDate}", 
+            period, startDate, endDate);
+        
+        var query = _db.IndicatorValues_HIV
+            .Where(iv => iv.VisitDate >= startDate 
+                      && iv.VisitDate <= endDate
+                      && iv.AgeGroup != null);
+
+        if (!string.IsNullOrEmpty(regionCode))
+        {
+            var regionId = GetRegionId(regionCode);
+            query = query.Where(iv => iv.RegionId == regionId);
+            _logger.LogDebug("Filtering by region: {RegionCode} -> RegionId: {RegionId}", regionCode, regionId);
+        }
+
+        var results = await query
+            .Where(iv => iv.Indicator == "TX_CURR" 
+                || iv.Indicator == "TX_VL_TESTED" 
+                || iv.Indicator == "TX_VL_SUPPRESSED")
+            .GroupBy(iv => iv.AgeGroup)
+            .Select(g => new
+            {
+                AgeGroup = g.Key,
+                OnArt = g.Where(iv => iv.Indicator == "TX_CURR").Sum(iv => (int?)iv.Value) ?? 0,
+                Tested = g.Where(iv => iv.Indicator == "TX_VL_TESTED").Sum(iv => (int?)iv.Value) ?? 0,
+                Suppressed = g.Where(iv => iv.Indicator == "TX_VL_SUPPRESSED").Sum(iv => (int?)iv.Value) ?? 0
+            })
+            .ToListAsync();
+
+        _logger.LogDebug("Found {Count} age group breakdown results for period {Period}", results.Count, period);
+
+        // Define standard age group order
+        var ageGroupOrder = new Dictionary<string, int>
+        {
+            ["< 1"] = 1,
+            ["1 - 4"] = 2,
+            ["5 - 9"] = 3,
+            ["10 - 14"] = 4,
+            ["15 - 19"] = 5,
+            ["20 - 24"] = 6,
+            ["25 - 29"] = 7,
+            ["30 - 34"] = 8,
+            ["35 - 39"] = 9,
+            ["40 - 44"] = 10,
+            ["45 - 49"] = 11,
+            ["50 - 54"] = 12,
+            ["55 - 59"] = 13,
+            [">= 60"] = 14,
+            ["Unknown"] = 99
+        };
+
+        return results.Select(r => new AgeGroupBreakdownDto
+        {
+            AgeGroup = r.AgeGroup ?? "Unknown",
+            AgeGroupCode = r.AgeGroup ?? "Unknown",
+            OnArt = r.OnArt,
+            Tested = r.Tested,
+            Suppressed = r.Suppressed,
+            Unsuppressed = r.Tested - r.Suppressed,
+            SuppressionRate = r.Tested > 0 
+                ? Math.Round((decimal)r.Suppressed / r.Tested * 100, 1) 
+                : 0,
+            TestCoverage = r.OnArt > 0 
+                ? Math.Round((decimal)r.Tested / r.OnArt * 100, 1) 
+                : 0
+        })
+        .OrderBy(a => ageGroupOrder.ContainsKey(a.AgeGroup) ? ageGroupOrder[a.AgeGroup] : 99)
+        .ToList();
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting breakdown by age group for period {Period}", period);
+        return new List<AgeGroupBreakdownDto>();
+    }
+}
+
+public async Task<decimal> GetIndicatorValueAsync(string indicatorCode, string period, string? regionCode = null, string? ageGroup = null, string? sex = null)
+{
+    try
+    {
+        // Parse the quarter period
+        var year = int.Parse(period.Substring(0, 4));
+        var quarter = int.Parse(period.Substring(5, 1));
+        
+        // Calculate the quarter date range
+        DateTime startDate, endDate;
+        switch (quarter)
+        {
+            case 1:
+                startDate = new DateTime(year, 1, 1);
+                endDate = new DateTime(year, 3, 31);
+                break;
+            case 2:
+                startDate = new DateTime(year, 4, 1);
+                endDate = new DateTime(year, 6, 30);
+                break;
+            case 3:
+                startDate = new DateTime(year, 7, 1);
+                endDate = new DateTime(year, 9, 30);
+                break;
+            case 4:
+                startDate = new DateTime(year, 10, 1);
+                endDate = new DateTime(year, 12, 31);
+                break;
+            default:
+                return 0;
+        }
+        
+        var query = _db.IndicatorValues_HIV
+            .Where(iv => iv.Indicator == indicatorCode
+                && iv.VisitDate >= startDate
+                && iv.VisitDate <= endDate);
+
+        if (!string.IsNullOrEmpty(regionCode))
+        {
+            var regionId = GetRegionId(regionCode);
+            query = query.Where(iv => iv.RegionId == regionId);
+        }
+        
+        if (!string.IsNullOrEmpty(ageGroup))
+            query = query.Where(iv => iv.AgeGroup == ageGroup);
+        
+        if (!string.IsNullOrEmpty(sex))
+            query = query.Where(iv => iv.Sex == sex);
+
+        // Sum all values in the quarter
+        var value = await query
+            .SumAsync(iv => (int?)iv.Value) ?? 0;
+
+        _logger.LogDebug("GetIndicatorValueAsync for {Indicator} in {Period}: {Value}", 
+            indicatorCode, period, value);
+
+        return value;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error getting {Indicator} for period {Period}", indicatorCode, period);
+        return 0;
+    }
+}
+
+// Helper methods for region conversion
+private string GetRegionCode(int regionId)
+{
+    return regionId switch
+    {
+        1 => "HH",
+        2 => "MN",
+        3 => "LB",
+        4 => "SH",
+        _ => "UN"
+    };
+}
+
+private int GetRegionId(string regionCode)
+{
+    return regionCode.ToUpper() switch
+    {
+        "HH" => 1,
+        "MN" => 2,
+        "LB" => 3,
+        "SH" => 4,
+        _ => 0
+    };
+}
 }
 
 // Extension method for region filtering

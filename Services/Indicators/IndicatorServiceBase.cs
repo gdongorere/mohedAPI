@@ -23,16 +23,12 @@ public abstract class IndicatorServiceBase
 
     protected IQueryable<T> GetLatestRecords<T>(IQueryable<T> query) where T : class
     {
-        // Note: In a real implementation, you'd use the vw_LatestIndicatorValues views
-        // This is handled by EF Core when you query against the views
         return query;
     }
 
     protected List<IndicatorValueDto> MapToDto<T>(IEnumerable<T> records, string tableType) where T : class
     {
         var result = new List<IndicatorValueDto>();
-        
-        // This will be implemented by specific services
         return result;
     }
 
@@ -45,6 +41,30 @@ public abstract class IndicatorServiceBase
             3 => "Shiselweni",
             4 => "Lubombo",
             _ => "Unknown"
+        };
+    }
+
+    protected static string GetRegionCode(int regionId)
+    {
+        return regionId switch
+        {
+            1 => "HH",
+            2 => "MN",
+            3 => "LB",
+            4 => "SH",
+            _ => "UN"
+        };
+    }
+
+    protected static int GetRegionId(string regionCode)
+    {
+        return regionCode.ToUpper() switch
+        {
+            "HH" => 1,
+            "MN" => 2,
+            "LB" => 3,
+            "SH" => 4,
+            _ => 0
         };
     }
 }
