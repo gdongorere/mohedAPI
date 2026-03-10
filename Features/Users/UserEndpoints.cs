@@ -37,6 +37,7 @@ public static class UserEndpoints
         if (dbUser == null)
             return Results.NotFound();
 
+#pragma warning disable CS8601 // Possible null reference assignment.
         return Results.Ok(new
         {
             success = true,
@@ -50,11 +51,14 @@ public static class UserEndpoints
                 IsActive = dbUser.IsActive
             }
         });
+#pragma warning restore CS8601 // Possible null reference assignment.
     }
 
     private static async Task<IResult> GetAllUsers(
         StagingDbContext db)
     {
+
+#pragma warning disable CS8601 // Possible null reference assignment.
         var users = await db.Users
             .Select(u => new UserDto
             {
@@ -66,6 +70,7 @@ public static class UserEndpoints
                 IsActive = u.IsActive
             })
             .ToListAsync();
+#pragma warning restore CS8601 // Possible null reference assignment.
 
         return Results.Ok(new
         {

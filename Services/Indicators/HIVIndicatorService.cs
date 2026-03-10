@@ -744,7 +744,7 @@ public async Task<decimal> GetIndicatorValueAsync(string indicatorCode, string p
 }
 
 // Helper methods for region conversion
-private string GetRegionCode(int regionId)
+private static new string GetRegionCode(int regionId)
 {
     return regionId switch
     {
@@ -756,7 +756,7 @@ private string GetRegionCode(int regionId)
     };
 }
 
-private int GetRegionId(string regionCode)
+private static new int GetRegionId(string regionCode)
 {
     return regionCode.ToUpper() switch
     {

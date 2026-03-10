@@ -60,6 +60,7 @@ public static class AuthEndpoints
 
             var token = jwt.GenerateToken(user);
 
+#pragma warning disable CS8601 // Possible null reference assignment.
             var response = new LoginResponse
             {
                 Token = token,
@@ -74,6 +75,8 @@ public static class AuthEndpoints
                     IsActive = user.IsActive
                 }
             };
+#pragma warning restore CS8601 // Possible null reference assignment.
+            
 
             return Results.Ok(new
             {

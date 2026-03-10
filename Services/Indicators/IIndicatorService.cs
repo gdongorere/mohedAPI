@@ -40,8 +40,17 @@ public interface IPreventionIndicatorService : IIndicatorService
     Task<Dictionary<string, int>> GetPrEPByMethodAsync(DateTime startDate, DateTime endDate, int? regionId = null);
 }
 
-// TB Specific (for future)
+// TB Specific
 public interface ITBIndicatorService : IIndicatorService
 {
-    // Will be implemented when TB data is available
+    // TPT Cascade metrics
+    Task<int> GetTPTEligibleAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTStartedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTCompletedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTStoppedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTTransferredOutAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTDiedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTSelfStoppedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTStoppedByClinicianAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<int> GetTPTLTFUAsync(DateTime startDate, DateTime endDate, int? regionId = null);
 }

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "e2ApI+DBImo=",
+  "dgSpecHash": "CnMB2a0ICD8=",
   "success": true,
   "projectFilePath": "/run/media/gee/STUFF/Code/Data.FI/Eswatini.Health.Api/Eswatini.Health.Api.csproj",
   "expectedPackageFiles": [
@@ -103,7 +103,7 @@
     "/home/gee/.nuget/packages/system.threading.channels/7.0.0/system.threading.channels.7.0.0.nupkg.sha512",
     "/home/gee/.nuget/packages/system.threading.tasks.extensions/4.5.4/system.threading.tasks.extensions.4.5.4.nupkg.sha512",
     "/home/gee/.nuget/packages/system.windows.extensions/6.0.0/system.windows.extensions.6.0.0.nupkg.sha512",
-    "/home/gee/.nuget/packages/microsoft.aspnetcore.app.ref/9.0.12/microsoft.aspnetcore.app.ref.9.0.12.nupkg.sha512"
+    "/home/gee/.nuget/packages/microsoft.aspnetcore.app.ref/9.0.13/microsoft.aspnetcore.app.ref.9.0.13.nupkg.sha512"
   ],
   "logs": []
 }

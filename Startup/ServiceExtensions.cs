@@ -46,6 +46,7 @@ public static class ServiceExtensions
     services.AddScoped<IHTSETLService, HTSETLService>();
     services.AddScoped<IPrEPETLService, PrEPETLService>();
     services.AddScoped<IARTETLService, ARTETLService>();
+    services.AddScoped<ITBETLService, TBETLService>();
     services.AddScoped<IETLService, ETLService>();
     
     // Facility Region Service (Singleton for caching)

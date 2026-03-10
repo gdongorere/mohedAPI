@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Eswatini.Health.Api.Services.Indicators;
 using Eswatini.Health.Api.Services.Period;
 using Eswatini.Health.Api.Models.DTOs.Indicators;
+using Eswatini.Health.Api.Services.ETL;
 
 namespace Eswatini.Health.Api.Features.Indicators;
 
@@ -31,6 +32,7 @@ public static class IndicatorEndpoints
         [FromServices] IHIVIndicatorService hivService,
         [FromServices] IPreventionIndicatorService preventionService,
         [FromServices] IPeriodService periodService,
+        [FromServices] ITBIndicatorService tbService,
         [FromQuery] string[]? indicators = null,
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null,
@@ -38,6 +40,7 @@ public static class IndicatorEndpoints
         [FromQuery] string? ageGroup = null,
         [FromQuery] string? sex = null,
         [FromQuery] string? populationType = null,
+        [FromQuery] string? tbType = null,  
         [FromQuery] string? periodType = "daily")
     {
         try
@@ -51,6 +54,7 @@ public static class IndicatorEndpoints
                 AgeGroup = ageGroup,
                 Sex = sex,
                 PopulationType = populationType,
+                TBType = tbType,
                 PeriodType = periodType
             };
 
@@ -58,8 +62,9 @@ public static class IndicatorEndpoints
             // This is simplified - in reality you'd need to route to appropriate service
             var hivData = await hivService.GetIndicatorDataAsync(request);
             var preventionData = await preventionService.GetIndicatorDataAsync(request);
+             var tbData = await tbService.GetIndicatorDataAsync(request); 
             
-            var allData = hivData.Concat(preventionData).ToList();
+            var allData = hivData.Concat(preventionData).Concat(tbData).ToList();
 
             return Results.Ok(new
             {
@@ -77,6 +82,7 @@ public static class IndicatorEndpoints
     private static async Task<IResult> GetIndicatorTrends(
         [FromServices] IHIVIndicatorService hivService,
         [FromServices] IPreventionIndicatorService preventionService,
+            [FromServices] ITBIndicatorService tbService,  
         [FromQuery] string[] indicators,
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
@@ -86,9 +92,10 @@ public static class IndicatorEndpoints
         {
             var hivTrends = await hivService.GetIndicatorTrendsAsync(indicators, startDate, endDate, periodType);
             var preventionTrends = await preventionService.GetIndicatorTrendsAsync(indicators, startDate, endDate, periodType);
+            var tbTrends = await tbService.GetIndicatorTrendsAsync(indicators, startDate, endDate, periodType);
 
             var allTrends = new Dictionary<string, List<IndicatorValueDto>>();
-            foreach (var kvp in hivTrends.Concat(preventionTrends))
+            foreach (var kvp in hivTrends.Concat(preventionTrends).Concat(tbTrends))
             {
                 allTrends[kvp.Key] = kvp.Value;
             }
@@ -117,7 +124,17 @@ public static class IndicatorEndpoints
             new { Code = "HTS_TST", Name = "HIV Tests Conducted", Category = "Prevention" },
             new { Code = "HTS_POS", Name = "HIV Positive Results", Category = "Prevention" },
             new { Code = "PREP_NEW", Name = "PrEP Initiations", Category = "Prevention" },
-            new { Code = "PREP_SEROCONVERSION", Name = "PrEP Seroconversions", Category = "Prevention" }
+            new { Code = "PREP_SEROCONVERSION", Name = "PrEP Seroconversions", Category = "Prevention" },
+
+            new { Code = "TPT_ELIGIBLE", Name = "TPT Eligible", Category = "TB" },
+            new { Code = "TPT_STARTED", Name = "TPT Started", Category = "TB" },
+            new { Code = "TPT_COMPLETED", Name = "TPT Completed", Category = "TB" },
+            new { Code = "TPT_STOPPED", Name = "TPT Stopped", Category = "TB" },
+            new { Code = "TPT_TRANSFERRED_OUT", Name = "TPT Transferred Out", Category = "TB" },
+            new { Code = "TPT_DIED", Name = "TPT Died", Category = "TB" },
+            new { Code = "TPT_SELF_STOPPED", Name = "TPT Self Stopped", Category = "TB" },
+            new { Code = "TPT_STOPPED_BY_CLINICIAN", Name = "TPT Stopped by Clinician", Category = "TB" },
+            new { Code = "TPT_LTFU", Name = "TPT Lost to Follow Up", Category = "TB" }
         };
 
         return Results.Ok(new

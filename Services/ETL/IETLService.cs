@@ -28,3 +28,9 @@ public interface IARTETLService
     Task<ETLResult> RunAsync(string triggeredBy = "system");
     Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate);
 }
+
+public interface ITBETLService
+{
+    Task<ETLResult> RunAsync(string triggeredBy = "system");
+    Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate);
+}

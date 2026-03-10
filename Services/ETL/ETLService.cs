@@ -11,6 +11,7 @@ public class ETLService : IETLService
     private readonly IHTSETLService _htsETL;
     private readonly IPrEPETLService _prepETL;
     private readonly IARTETLService _artETL;
+    private readonly ITBETLService _tbETL;
 
     // ETL History tracking (in-memory for now, can be moved to database later)
     private static readonly List<ETLJobHistoryDto> _jobHistory = new();
@@ -20,13 +21,15 @@ public class ETLService : IETLService
         ILogger<ETLService> logger,
         IHTSETLService htsETL,
         IPrEPETLService prepETL,
-        IARTETLService artETL)
+        IARTETLService artETL,
+        ITBETLService tbETL)
     {
         _db = db;
         _logger = logger;
         _htsETL = htsETL;
         _prepETL = prepETL;
         _artETL = artETL;
+        _tbETL = tbETL;
     }
 
     public async Task<ETLResult> RunETLForSourceAsync(string source, string triggeredBy = "system")
@@ -48,7 +51,8 @@ public class ETLService : IETLService
                     "hts" => await _htsETL.RunAsync(triggeredBy),
                     "prep" => await _prepETL.RunAsync(triggeredBy),
                     "art" => await _artETL.RunAsync(triggeredBy),
-                    _ => throw new ArgumentException($"Unknown source: {source}")
+                    "tb" => await _tbETL.RunAsync(triggeredBy),
+                    _ => throw new NotImplementedException(),
                 };
 
                 // Commit transaction if successful
@@ -151,7 +155,7 @@ public class ETLService : IETLService
 
     private Dictionary<string, LastRunInfoDto> GetLastRunTimesSync()
     {
-        var jobs = new[] { "HTS", "PrEP", "ART" };
+        var jobs = new[] { "HTS", "PrEP", "ART", "TB"};
         var result = new Dictionary<string, LastRunInfoDto>();
 
         foreach (var job in jobs)
@@ -168,6 +172,7 @@ public class ETLService : IETLService
                     "HTS" => "tmpHTSTestedDetail",
                     "PrEP" => "LineListingsPrep, aPrepDetail",
                     "ART" => "tmpARTTXOutcomes",
+                    "TB" => "tmpTBOutcomes",
                     _ => "Unknown"
                 },
                 TargetTable = job switch
@@ -175,6 +180,7 @@ public class ETLService : IETLService
                     "HTS" => "IndicatorValues_Prevention",
                     "PrEP" => "IndicatorValues_Prevention",
                     "ART" => "IndicatorValues_HIV",
+                    "TB" => "IndicatorValues_TB",
                     _ => "Unknown"
                 },
                 LastRunTime = lastRun?.EndTime ?? lastRun?.StartTime,

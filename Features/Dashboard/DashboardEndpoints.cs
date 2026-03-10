@@ -23,6 +23,10 @@ public static class DashboardEndpoints
             .WithName("GetRegionalDashboard")
             .WithOpenApi();
 
+            group.MapGet("/tb", GetTBDashboard)
+    .WithName("GetTBDashboard")
+    .WithOpenApi();
+
         return app;
     }
 
@@ -148,4 +152,62 @@ public static class DashboardEndpoints
             return Results.Problem(ex.Message, statusCode: 500);
         }
     }
+
+private static async Task<IResult> GetTBDashboard(
+    [FromServices] ITBIndicatorService tbService,
+    [FromServices] IPeriodService periodService,
+    [FromQuery] DateTime? startDate = null,
+    [FromQuery] DateTime? endDate = null,
+    [FromQuery] int? regionId = null)
+{
+    try
+    {
+        var end = endDate ?? DateTime.UtcNow;
+        var start = startDate ?? new DateTime(end.Year, end.Month, 1);
+
+        // Get TB metrics
+        var eligible = await tbService.GetTPTEligibleAsync(start, end, regionId);
+        var started = await tbService.GetTPTStartedAsync(start, end, regionId);
+        var completed = await tbService.GetTPTCompletedAsync(start, end, regionId);
+        var stopped = await tbService.GetTPTStoppedAsync(start, end, regionId);
+        var transferredOut = await tbService.GetTPTTransferredOutAsync(start, end, regionId);
+        var died = await tbService.GetTPTDiedAsync(start, end, regionId);
+        var selfStopped = await tbService.GetTPTSelfStoppedAsync(start, end, regionId);
+        var stoppedByClinician = await tbService.GetTPTStoppedByClinicianAsync(start, end, regionId);
+        var ltfU = await tbService.GetTPTLTFUAsync(start, end, regionId);
+
+        var dashboard = new
+        {
+            Period = $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}",
+            Summary = new
+            {
+                Eligible = eligible,
+                Started = started,
+                Completed = completed,
+                InitiationRate = eligible > 0 ? Math.Round((decimal)started / eligible * 100, 1) : 0,
+                CompletionRate = started > 0 ? Math.Round((decimal)completed / started * 100, 1) : 0
+            },
+            Outcomes = new
+            {
+                Stopped = stopped,
+                TransferredOut = transferredOut,
+                Died = died,
+                SelfStopped = selfStopped,
+                StoppedByClinician = stoppedByClinician,
+                LTFU = ltfU
+            },
+            LastUpdated = DateTime.UtcNow
+        };
+
+        return Results.Ok(new
+        {
+            success = true,
+            data = dashboard
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 500);
+    }
+}
 }
