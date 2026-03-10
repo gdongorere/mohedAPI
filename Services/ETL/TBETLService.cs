@@ -20,7 +20,7 @@ public class TBETLService : ITBETLService
     // ============================================================
     
     /// <summary>
-    /// Whether to log TPT discrepancies (when data quality issues found)
+    /// Whether to log TPT discrepancies
     /// </summary>
     private const bool LogTptDiscrepancies = true;
     
@@ -30,15 +30,18 @@ public class TBETLService : ITBETLService
     private static readonly DateTime? MinProcessDate = null;
     
     /// <summary>
-    /// Column name mappings - Change if source column names change
+    /// Column name mappings
     /// </summary>
     private static class SourceColumns
     {
+        public const string VisitID = "VisitID";
+        public const string ClientID = "ClientID";
         public const string FacilityCode = "FacilityCode";
         public const string VisitDate = "VisitDate";
         public const string TPTStartDate = "TPTStartDate";
         public const string AgeGroup = "AgeGroup";
         public const string SexName = "SexName";
+        public const string Sex = "Sex";
         public const string PatientID = "PatientID";
         public const string FirstName = "FirstName";
         public const string LastName = "LastName";
@@ -57,7 +60,7 @@ public class TBETLService : ITBETLService
     }
     
     /// <summary>
-    /// Indicator mappings - Change if staging indicator names need to change
+    /// Indicator mappings
     /// </summary>
     private static class Indicators
     {
@@ -73,7 +76,7 @@ public class TBETLService : ITBETLService
     }
     
     /// <summary>
-    /// Sex mappings - Maps source sex names to staging values
+    /// Sex mappings
     /// </summary>
     private static readonly Dictionary<string, string> SexMappings = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -175,14 +178,25 @@ public class TBETLService : ITBETLService
         var unmappedFacilities = new HashSet<string>();
         var discrepancyCount = 0;
 
-        // Build query with optional date filter
+        // Track unique clients for ART linkage
+        var uniqueClients = new HashSet<string>();
+        var clientARTStatus = new Dictionary<string, bool>(); // ClientID -> IsOnART
+
+        // First, load ART client data to check which TPT clients are on ART
+        _logger.LogInformation("Loading ART client data for linkage...");
+        await LoadARTClientDataAsync(clientARTStatus);
+
+        // Build query with optional date filter - include ClientID and VisitID for linking
         var query = $@"
             SELECT 
+                [{SourceColumns.VisitID}],
+                [{SourceColumns.ClientID}],
                 [{SourceColumns.FacilityCode}],
                 [{SourceColumns.VisitDate}],
                 [{SourceColumns.TPTStartDate}],
                 [{SourceColumns.AgeGroup}],
                 [{SourceColumns.SexName}],
+                [{SourceColumns.Sex}],
                 [{SourceColumns.PatientID}],
                 [{SourceColumns.FirstName}],
                 [{SourceColumns.LastName}],
@@ -206,7 +220,6 @@ public class TBETLService : ITBETLService
         
         await connection.OpenAsync();
         _logger.LogInformation("Connected to source database");
-        _logger.LogInformation("Executing query: {Query}", query);
         
         using var reader = await command.ExecuteReaderAsync();
 
@@ -217,24 +230,26 @@ public class TBETLService : ITBETLService
             if (recordsRead % 10000 == 0)
                 _logger.LogInformation("Processed {Count:N0} raw TPT records", recordsRead);
 
-            // Read values with null handling
-            var facilityCode = reader.IsDBNull(0) ? null : reader.GetString(0).Trim();
-            if (string.IsNullOrEmpty(facilityCode))
+            var visitId = reader.IsDBNull(0) ? null : reader.GetGuid(0).ToString();
+            var clientId = reader.IsDBNull(1) ? null : reader.GetGuid(1).ToString();
+            var facilityCode = reader.IsDBNull(2) ? null : reader.GetString(2).Trim();
+            
+            if (string.IsNullOrEmpty(facilityCode) || string.IsNullOrEmpty(clientId))
                 continue;
 
-            var visitDate = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1);
+            var visitDate = reader.IsDBNull(3) ? (DateTime?)null : reader.GetDateTime(3);
             if (!visitDate.HasValue)
                 continue;
 
-            var tptStartDate = reader.IsDBNull(2) ? (DateTime?)null : reader.GetDateTime(2);
-            var ageGroup = reader.IsDBNull(3) ? Defaults.AgeGroup : reader.GetString(3).Trim();
-            var sexName = reader.IsDBNull(4) ? Defaults.Sex : reader.GetString(4).Trim();
+            var tptStartDate = reader.IsDBNull(4) ? (DateTime?)null : reader.GetDateTime(4);
+            var ageGroup = reader.IsDBNull(5) ? Defaults.AgeGroup : reader.GetString(5).Trim();
+            var sexName = reader.IsDBNull(6) ? Defaults.Sex : reader.GetString(6).Trim();
             
-            // Optional fields - read but not used in aggregation
-            var patientId = reader.IsDBNull(5) ? null : reader.GetString(5);
-            var firstName = reader.IsDBNull(6) ? null : reader.GetString(6);
-            var lastName = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var pin = reader.IsDBNull(8) ? null : reader.GetString(8);
+            // Track unique clients
+            uniqueClients.Add(clientId);
+            
+            // Check if this client is on ART
+            var isOnART = clientARTStatus.ContainsKey(clientId);
             
             if (!facilityRegions.TryGetValue(facilityCode, out var regionId))
             {
@@ -242,23 +257,22 @@ public class TBETLService : ITBETLService
                 continue;
             }
 
-            // Map sex to staging value
             var sex = SexMappings.TryGetValue(sexName, out var mappedSex) ? mappedSex : Defaults.Sex;
 
             var now = DateTime.UtcNow;
 
             // Get all TPT status values
-            var eligibleValue = reader.GetInt32(9);
-            var startedValue = reader.GetInt32(10);
-            var completedValue = reader.GetInt32(11);
-            var stoppedValue = reader.GetInt32(12);
-            var transferredOutValue = reader.GetInt32(13);
-            var diedValue = reader.GetInt32(14);
-            var selfStoppedValue = reader.GetInt32(15);
-            var stoppedByClinicianValue = reader.GetInt32(16);
-            var ltfUValue = reader.GetInt32(17);
+            var eligibleValue = reader.GetInt32(12);
+            var startedValue = reader.GetInt32(13);
+            var completedValue = reader.GetInt32(14);
+            var stoppedValue = reader.GetInt32(15);
+            var transferredOutValue = reader.GetInt32(16);
+            var diedValue = reader.GetInt32(17);
+            var selfStoppedValue = reader.GetInt32(18);
+            var stoppedByClinicianValue = reader.GetInt32(19);
+            var ltfUValue = reader.GetInt32(20);
 
-            // Validate data quality - a client can't be in multiple mutually exclusive states
+            // Validate data quality
             var activeStates = 0;
             if (completedValue > 0) activeStates++;
             if (stoppedValue > 0) activeStates++;
@@ -273,7 +287,7 @@ public class TBETLService : ITBETLService
                     discrepancyCount, facilityCode, visitDate.Value.Date);
             }
 
-            // Add TPT_ELIGIBLE if eligible > 0
+            // Add TPT_ELIGIBLE
             if (eligibleValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -283,7 +297,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART", // Track ART status
                     TBType = Defaults.TBType,
                     Value = eligibleValue,
                     CreatedAt = now,
@@ -291,7 +305,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_STARTED if started > 0
+            // Add TPT_STARTED
             if (startedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -301,7 +315,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = startedValue,
                     CreatedAt = now,
@@ -309,7 +323,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_COMPLETED if completed > 0
+            // Add TPT_COMPLETED
             if (completedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -319,7 +333,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = completedValue,
                     CreatedAt = now,
@@ -327,7 +341,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_STOPPED if stopped > 0
+            // Add TPT_STOPPED
             if (stoppedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -337,7 +351,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = stoppedValue,
                     CreatedAt = now,
@@ -345,7 +359,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_TRANSFERRED_OUT if transferred out > 0
+            // Add TPT_TRANSFERRED_OUT
             if (transferredOutValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -355,7 +369,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = transferredOutValue,
                     CreatedAt = now,
@@ -363,7 +377,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_DIED if died > 0
+            // Add TPT_DIED
             if (diedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -373,7 +387,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = diedValue,
                     CreatedAt = now,
@@ -381,7 +395,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_SELF_STOPPED if self stopped > 0
+            // Add TPT_SELF_STOPPED
             if (selfStoppedValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -391,7 +405,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = selfStoppedValue,
                     CreatedAt = now,
@@ -399,7 +413,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_STOPPED_BY_CLINICIAN if stopped by clinician > 0
+            // Add TPT_STOPPED_BY_CLINICIAN
             if (stoppedByClinicianValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -409,7 +423,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = stoppedByClinicianValue,
                     CreatedAt = now,
@@ -417,7 +431,7 @@ public class TBETLService : ITBETLService
                 });
             }
 
-            // Add TPT_LTFU if LTFU > 0
+            // Add TPT_LTFU
             if (ltfUValue > 0)
             {
                 allRawRecords.Add(new IndicatorValueTB
@@ -427,7 +441,7 @@ public class TBETLService : ITBETLService
                     VisitDate = visitDate.Value.Date,
                     AgeGroup = ageGroup,
                     Sex = sex,
-                    PopulationType = Defaults.PopulationType,
+                    PopulationType = isOnART ? "OnART" : "NotOnART",
                     TBType = Defaults.TBType,
                     Value = ltfUValue,
                     CreatedAt = now,
@@ -448,6 +462,9 @@ public class TBETLService : ITBETLService
                 allRawRecords.Clear();
             }
         }
+
+        _logger.LogInformation("Processed {Count} unique TPT clients, {ArtCount} are on ART", 
+            uniqueClients.Count, clientARTStatus.Count);
 
         // Log unmapped facilities
         if (unmappedFacilities.Any())
@@ -475,6 +492,41 @@ public class TBETLService : ITBETLService
         }
 
         return (recordsRead, inserted, updated, skipped);
+    }
+
+    private async Task LoadARTClientDataAsync(Dictionary<string, bool> clientARTStatus)
+    {
+        try
+        {
+            // Load all ART clients from tmpARTTXOutcomes
+            var query = @"
+                SELECT DISTINCT ClientID
+                FROM [All_Dataset].[dbo].[tmpARTTXOutcomes]
+                WHERE ClientID IS NOT NULL AND TX_CURR = 1";
+
+            using var connection = new SqlConnection(_sourceConnectionString);
+            using var command = new SqlCommand(query, connection);
+            
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            
+            var artClientCount = 0;
+            while (await reader.ReadAsync())
+            {
+                var clientId = reader.IsDBNull(0) ? null : reader.GetGuid(0).ToString();
+                if (!string.IsNullOrEmpty(clientId))
+                {
+                    clientARTStatus[clientId] = true;
+                    artClientCount++;
+                }
+            }
+
+            _logger.LogInformation("Loaded {Count} ART clients for TPT linkage", artClientCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading ART client data for TPT linkage");
+        }
     }
 
     public async Task<int> GetRecordCountForPeriodAsync(DateTime startDate, DateTime endDate)

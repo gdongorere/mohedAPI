@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Eswatini.Health.Api.Data;
 using Eswatini.Health.Api.Models.DTOs.Indicators;
+using Eswatini.Health.Api.Models.DTOs.Dashboard;
 using Eswatini.Health.Api.Models.Staging;
 using Eswatini.Health.Api.Services.Period;
 
@@ -8,11 +9,15 @@ namespace Eswatini.Health.Api.Services.Indicators;
 
 public class TBIndicatorService : IndicatorServiceBase, ITBIndicatorService
 {
+    private readonly IHIVIndicatorService _hivService;
+
     public TBIndicatorService(
         StagingDbContext db,
         ILogger<TBIndicatorService> logger,
-        IPeriodService periodService) : base(db, logger, periodService)
+        IPeriodService periodService,
+        IHIVIndicatorService hivService) : base(db, logger, periodService)
     {
+        _hivService = hivService;
     }
 
     public async Task<List<IndicatorValueDto>> GetIndicatorDataAsync(IndicatorDataRequest request)
@@ -64,7 +69,7 @@ public class TBIndicatorService : IndicatorServiceBase, ITBIndicatorService
                 })
                 .ToListAsync();
 
-            // Aggregate by period if needed (do this in memory after EF query)
+            // Aggregate by period if needed
             if (request.PeriodType != "daily" && request.PeriodType != null && results.Any())
             {
                 results = results
@@ -138,7 +143,7 @@ public class TBIndicatorService : IndicatorServiceBase, ITBIndicatorService
         }
     }
 
-    // ========== TPT SPECIFIC METHODS ==========
+    // ========== TPT SPECIFIC METHODS WITH ART INTEGRATION ==========
 
     public async Task<int> GetTPTEligibleAsync(DateTime startDate, DateTime endDate, int? regionId = null)
     {
@@ -326,6 +331,210 @@ public class TBIndicatorService : IndicatorServiceBase, ITBIndicatorService
         {
             _logger.LogError(ex, "Error getting TPT LTFU");
             return 0;
+        }
+    }
+
+    // ========== DASHBOARD METHODS WITH ART COHORT ==========
+
+    public async Task<TBArtDashboardDto> GetTBArtDashboardAsync(DateTime? asOfDate = null, int? regionId = null)
+    {
+        try
+        {
+            var date = asOfDate ?? DateTime.UtcNow;
+            var monthStart = new DateTime(date.Year, date.Month, 1);
+            
+            // Get total ART patients for the cohort
+            var totalOnArt = await _hivService.GetTotalOnArtAsync(date, regionId);
+            
+            // Get TPT metrics broken down by ART status
+            var eligibleOnArt = await GetTPTByPopulationTypeAsync("TPT_ELIGIBLE", monthStart, date, "OnART", regionId);
+            var eligibleNotOnArt = await GetTPTByPopulationTypeAsync("TPT_ELIGIBLE", monthStart, date, "NotOnART", regionId);
+            
+            var startedOnArt = await GetTPTByPopulationTypeAsync("TPT_STARTED", monthStart, date, "OnART", regionId);
+            var startedNotOnArt = await GetTPTByPopulationTypeAsync("TPT_STARTED", monthStart, date, "NotOnART", regionId);
+            
+            var completedOnArt = await GetTPTByPopulationTypeAsync("TPT_COMPLETED", monthStart, date, "OnART", regionId);
+            var completedNotOnArt = await GetTPTByPopulationTypeAsync("TPT_COMPLETED", monthStart, date, "NotOnART", regionId);
+
+            return new TBArtDashboardDto
+            {
+                AsOfDate = date,
+                TotalOnArt = totalOnArt,
+                TPTMetrics = new TPTMetricsDto
+                {
+                    Eligible = eligibleOnArt + eligibleNotOnArt,
+                    EligibleOnArt = eligibleOnArt,
+                    EligibleNotOnArt = eligibleNotOnArt,
+                    
+                    Started = startedOnArt + startedNotOnArt,
+                    StartedOnArt = startedOnArt,
+                    StartedNotOnArt = startedNotOnArt,
+                    
+                    Completed = completedOnArt + completedNotOnArt,
+                    CompletedOnArt = completedOnArt,
+                    CompletedNotOnArt = completedNotOnArt,
+                    
+                    TptCoverageAmongArt = totalOnArt > 0 
+                        ? Math.Round((decimal)startedOnArt / totalOnArt * 100, 1) 
+                        : 0,
+                    
+                    TptCoverageOverall = totalOnArt > 0 
+                        ? Math.Round((decimal)(startedOnArt + startedNotOnArt) / totalOnArt * 100, 1) 
+                        : 0
+                },
+                LastUpdated = DateTime.UtcNow
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TB/ART dashboard");
+            return new TBArtDashboardDto();
+        }
+    }
+
+    private async Task<int> GetTPTByPopulationTypeAsync(string indicator, DateTime startDate, DateTime endDate, string populationType, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_TB
+                .Where(x => x.Indicator == indicator
+                    && x.VisitDate >= startDate
+                    && x.VisitDate <= endDate
+                    && x.PopulationType == populationType);
+            
+            if (regionId.HasValue)
+                query = query.Where(x => x.RegionId == regionId.Value);
+
+            return await query.SumAsync(x => x.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TPT by population type");
+            return 0;
+        }
+    }
+
+    public async Task<TBCascadeArtDto> GetTPTCascadeWithArtAsync(DateTime? asOfDate = null, int? regionId = null)
+    {
+        try
+        {
+            var date = asOfDate ?? DateTime.UtcNow;
+            
+            // Get cumulative TPT metrics (all time)
+            var eligibleOnArt = await GetTPTByPopulationTypeAsync("TPT_ELIGIBLE", DateTime.MinValue, date, "OnART", regionId);
+            var startedOnArt = await GetTPTByPopulationTypeAsync("TPT_STARTED", DateTime.MinValue, date, "OnART", regionId);
+            var completedOnArt = await GetTPTByPopulationTypeAsync("TPT_COMPLETED", DateTime.MinValue, date, "OnART", regionId);
+            
+            var eligibleNotOnArt = await GetTPTByPopulationTypeAsync("TPT_ELIGIBLE", DateTime.MinValue, date, "NotOnART", regionId);
+            var startedNotOnArt = await GetTPTByPopulationTypeAsync("TPT_STARTED", DateTime.MinValue, date, "NotOnART", regionId);
+            var completedNotOnArt = await GetTPTByPopulationTypeAsync("TPT_COMPLETED", DateTime.MinValue, date, "NotOnART", regionId);
+
+            return new TBCascadeArtDto
+            {
+                AsOfDate = date,
+                OnArt = new TPTArtCascadeDto
+                {
+                    Eligible = eligibleOnArt,
+                    Started = startedOnArt,
+                    Completed = completedOnArt,
+                    InitiationRate = eligibleOnArt > 0 ? Math.Round((decimal)startedOnArt / eligibleOnArt * 100, 1) : 0,
+                    CompletionRate = startedOnArt > 0 ? Math.Round((decimal)completedOnArt / startedOnArt * 100, 1) : 0
+                },
+                NotOnArt = new TPTArtCascadeDto
+                {
+                    Eligible = eligibleNotOnArt,
+                    Started = startedNotOnArt,
+                    Completed = completedNotOnArt,
+                    InitiationRate = eligibleNotOnArt > 0 ? Math.Round((decimal)startedNotOnArt / eligibleNotOnArt * 100, 1) : 0,
+                    CompletionRate = startedNotOnArt > 0 ? Math.Round((decimal)completedNotOnArt / startedNotOnArt * 100, 1) : 0
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TPT cascade with ART");
+            return new TBCascadeArtDto();
+        }
+    }
+
+    public async Task<Dictionary<string, int>> GetTPTByAgeGroupAsync(string indicator, DateTime startDate, DateTime endDate, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_TB
+                .Where(x => x.Indicator == indicator
+                    && x.VisitDate >= startDate
+                    && x.VisitDate <= endDate)
+                .ApplyRegionFilter(regionId);
+
+            var results = await query
+                .GroupBy(x => x.AgeGroup)
+                .Select(g => new { AgeGroup = g.Key, Total = g.Sum(x => x.Value) })
+                .ToListAsync();
+
+            return results.ToDictionary(x => x.AgeGroup, x => x.Total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TPT by age group");
+            return new Dictionary<string, int>();
+        }
+    }
+
+    public async Task<Dictionary<string, int>> GetTPTBySexAsync(string indicator, DateTime startDate, DateTime endDate, int? regionId = null)
+    {
+        try
+        {
+            var query = _db.IndicatorValues_TB
+                .Where(x => x.Indicator == indicator
+                    && x.VisitDate >= startDate
+                    && x.VisitDate <= endDate)
+                .ApplyRegionFilter(regionId);
+
+            var results = await query
+                .GroupBy(x => x.Sex)
+                .Select(g => new { Sex = g.Key, Total = g.Sum(x => x.Value) })
+                .ToListAsync();
+
+            return results.ToDictionary(x => x.Sex, x => x.Total);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TPT by sex");
+            return new Dictionary<string, int>();
+        }
+    }
+
+    public async Task<List<RegionalBreakdownDto>> GetTPTByRegionAsync(string indicator, DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var results = await _db.IndicatorValues_TB
+                .Where(x => x.Indicator == indicator
+                    && x.VisitDate >= startDate
+                    && x.VisitDate <= endDate
+                    && x.RegionId != null)
+                .GroupBy(x => x.RegionId)
+                .Select(g => new RegionalBreakdownDto
+                {
+                    RegionId = g.Key ?? 0,
+                    RegionName = GetRegionName(g.Key ?? 0),
+                    Total = g.Sum(x => x.Value)
+                })
+                .ToListAsync();
+
+            var total = results.Sum(x => x.Total);
+            foreach (var item in results)
+            {
+                item.Percentage = total > 0 ? Math.Round((decimal)item.Total / total * 100, 1) : 0;
+            }
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting TPT by region");
+            return new List<RegionalBreakdownDto>();
         }
     }
 }

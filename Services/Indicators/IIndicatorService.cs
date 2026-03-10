@@ -53,4 +53,7 @@ public interface ITBIndicatorService : IIndicatorService
     Task<int> GetTPTSelfStoppedAsync(DateTime startDate, DateTime endDate, int? regionId = null);
     Task<int> GetTPTStoppedByClinicianAsync(DateTime startDate, DateTime endDate, int? regionId = null);
     Task<int> GetTPTLTFUAsync(DateTime startDate, DateTime endDate, int? regionId = null);
+    Task<TBArtDashboardDto> GetTBArtDashboardAsync(DateTime? asOfDate = null, int? regionId = null);
+    Task<TBCascadeArtDto> GetTPTCascadeWithArtAsync(DateTime? asOfDate = null, int? regionId = null);
+    Task<int> GetTPTByPopulationTypeAsync(string indicator, DateTime startDate, DateTime endDate, string populationType, int? regionId = null);
 }

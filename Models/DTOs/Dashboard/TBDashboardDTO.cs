@@ -46,3 +46,47 @@ public class TPTOutcomesDto
     public int StoppedByClinician { get; set; }
     public int LTFU { get; set; }
 }
+
+namespace Eswatini.Health.Api.Models.DTOs.Dashboard;
+
+public class TBArtDashboardDto
+{
+    public DateTime AsOfDate { get; set; }
+    public int TotalOnArt { get; set; }
+    public TPTMetricsDto TPTMetrics { get; set; } = new();
+    public DateTime LastUpdated { get; set; }
+}
+
+public class TPTMetricsDto
+{
+    public int Eligible { get; set; }
+    public int EligibleOnArt { get; set; }
+    public int EligibleNotOnArt { get; set; }
+    
+    public int Started { get; set; }
+    public int StartedOnArt { get; set; }
+    public int StartedNotOnArt { get; set; }
+    
+    public int Completed { get; set; }
+    public int CompletedOnArt { get; set; }
+    public int CompletedNotOnArt { get; set; }
+    
+    public decimal TptCoverageAmongArt { get; set; }
+    public decimal TptCoverageOverall { get; set; }
+}
+
+public class TBCascadeArtDto
+{
+    public DateTime AsOfDate { get; set; }
+    public TPTArtCascadeDto OnArt { get; set; } = new();
+    public TPTArtCascadeDto NotOnArt { get; set; } = new();
+}
+
+public class TPTArtCascadeDto
+{
+    public int Eligible { get; set; }
+    public int Started { get; set; }
+    public int Completed { get; set; }
+    public decimal InitiationRate { get; set; }
+    public decimal CompletionRate { get; set; }
+}
